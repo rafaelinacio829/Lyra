@@ -26,6 +26,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { PwaInstallBanner } from "./PwaInstallBanner";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Visão geral", path: "/app" },
@@ -276,6 +277,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
+        <PwaInstallBanner />
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
