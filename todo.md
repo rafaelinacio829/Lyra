@@ -92,4 +92,4 @@
 - [x] Adicionar validação simulada da conversão de trial para assinatura ativa em cartão e boleto.
 - [x] Adicionar cenário reproduzível de renovação mensal por boleto, com fatura, pagamento, falha e sincronização persistida de tenant e assinatura.
 - [ ] Homologar em produção, com credenciais reais de cada tenant, a WhatsApp Cloud API, a API de ERP personalizada e os métodos habilitados no Stripe.
-- [ ] Sincronizar no GitHub todas as alterações da expansão operacional.
+- [x] Sincronizar no GitHub todas as alterações da expansão operacional.
