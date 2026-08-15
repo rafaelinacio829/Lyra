@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deliverOperationalEmail, prepareOperationalAlerts, prepareWeeklySummary } from "./alerts";
+import { deliverOperationalEmail, prepareOperationalAlerts, prepareWeeklySummary, validateEmailProviderConfiguration } from "./alerts";
 
 describe("alertas operacionais", () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
@@ -10,6 +10,11 @@ describe("alertas operacionais", () => {
   it("não realiza chamada externa enquanto o provedor não estiver configurado", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     await expect(deliverOperationalEmail({ to: "admin@tenant.test", alert: { kind: "sla", subject: "SLA", body: "Risco" } })).resolves.toEqual({ delivered: false, reason: "email_provider_not_configured" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("não valida o provedor remoto sem segredo e remetente configurados", async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    await expect(validateEmailProviderConfiguration()).resolves.toEqual({ configured: false, valid: false, reason: "email_provider_not_configured" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it("prepara um resumo semanal sem depender de um provedor específico", () => {

@@ -15,6 +15,13 @@ export function prepareWeeklySummary(input: WeeklySummaryInput): { subject: stri
   return { subject: `Lyra: resumo semanal de ${input.tenantName}`, body: `Resumo operacional de ${input.tenantName}: ${input.receivedMessages} mensagem(ns) recebida(s), ${input.resolvedConversations} conversa(s) resolvida(s), ${input.awaitingHuman} conversa(s) aguardando atendimento humano e primeira resposta média de ${response}.` };
 }
 
+export async function validateEmailProviderConfiguration() {
+  const apiKey = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM;
+  if (!apiKey || !from) return { configured: false as const, valid: false as const, reason: "email_provider_not_configured" as const };
+  const response = await fetch("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${apiKey}` } });
+  return response.ok ? { configured: true as const, valid: true as const } : { configured: true as const, valid: false as const, reason: "provider_rejected_request" as const };
+}
+
 export async function deliverOperationalEmail(input: { to: string; alert: PreparedOperationalAlert | { subject: string; body: string } }) {
   const apiKey = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM;
   if (!apiKey || !from) return { delivered: false as const, reason: "email_provider_not_configured" as const };
