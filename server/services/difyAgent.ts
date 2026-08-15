@@ -5,16 +5,16 @@ import { sendZapiText } from "./zapi";
 import { assertTenantQuota } from "../planLimits";
 import { invokeConfiguredAiAgent } from "./aiProvider";
 
-export async function runDifyForInboundMessage({ tenantId, conversationId, contactId, contactPhone, body }: { tenantId: number; conversationId: number; contactId: number; contactPhone: string; body: string }) {
+export async function runAiForInboundMessage({ tenantId, conversationId, contactId, contactPhone, body }: { tenantId: number; conversationId: number; contactId: number; contactPhone: string; body: string }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
   const [agent] = await db
     .select()
     .from(agentProfiles)
-    .where(and(eq(agentProfiles.tenantId, tenantId), eq(agentProfiles.isActive, true), eq(agentProfiles.provider, "dify")))
+    .where(and(eq(agentProfiles.tenantId, tenantId), eq(agentProfiles.isActive, true)))
     .orderBy(desc(agentProfiles.isDefault), desc(agentProfiles.updatedAt))
     .limit(1);
-  if (!agent?.apiBaseUrl || !agent.credentialCiphertext) return { skipped: "no_active_agent" as const };
+  if (!agent?.credentialCiphertext) return { skipped: "no_active_agent" as const };
 
   const handoffKeywords = Array.isArray(agent.handoffKeywords) ? agent.handoffKeywords.filter((item): item is string => typeof item === "string") : [];
   if (handoffKeywords.some(keyword => body.toLocaleLowerCase("pt-BR").includes(keyword.toLocaleLowerCase("pt-BR")))) {
@@ -30,7 +30,7 @@ export async function runDifyForInboundMessage({ tenantId, conversationId, conta
     result = await invokeConfiguredAiAgent(agent, { tenantId, conversationId, contactId, contactPhone, body, externalConversationId: conversation?.externalConversationId });
   } catch (primaryError) {
     if (!agent.fallbackAgentId) throw primaryError;
-    const [fallback] = await db.select().from(agentProfiles).where(and(eq(agentProfiles.id, agent.fallbackAgentId), eq(agentProfiles.tenantId, tenantId), eq(agentProfiles.isActive, true), eq(agentProfiles.provider, "dify"))).limit(1);
+    const [fallback] = await db.select().from(agentProfiles).where(and(eq(agentProfiles.id, agent.fallbackAgentId), eq(agentProfiles.tenantId, tenantId), eq(agentProfiles.isActive, true))).limit(1);
     if (!fallback) throw primaryError;
     result = await invokeConfiguredAiAgent(fallback, { tenantId, conversationId, contactId, contactPhone, body, externalConversationId: conversation?.externalConversationId });
   }
@@ -42,3 +42,6 @@ export async function runDifyForInboundMessage({ tenantId, conversationId, conta
   await db.update(conversations).set({ latestMessagePreview: answer, unreadCount: 0, externalConversationId: result.externalConversationId, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   return { replied: true as const };
 }
+
+/** @deprecated Mantido para compatibilidade com o webhook Z-API existente. */
+export const runDifyForInboundMessage = runAiForInboundMessage;

@@ -50,5 +50,8 @@
 - [x] Adicionar UI para editar times, remover membros de forma explícita e validar presença e carga de trabalho com testes.
 - [x] Corrigir o estado sem tenant nos painéis autenticados para evitar carregamento contínuo e direcionar o usuário ao onboarding.
 - [x] Avaliar provedores alternativos ao Dify para agentes por tenant, priorizando APIs, privacidade, custo e encaixe no adaptador de IA existente.
-- [ ] Ampliar o catálogo multitenant de IA com OpenAI direto, Google Gemini/ADK, Anthropic Claude, LangGraph e conectores compatíveis com Flowise, Langflow e n8n.
+- [x] Ampliar o catálogo multitenant de IA com OpenAI direto, Google Gemini/ADK, Anthropic Claude, LangGraph e conectores compatíveis com Flowise, Langflow e n8n.
 - [x] Corrigir a jornada do CTA "Criar minha operação" para explicar a autenticação necessária e evitar a percepção de cadastro indevido na Manus.
+- [x] Documentar que Google ADK é consumido pelo Lyra como endpoint publicado compatível e refletir essa regra no catálogo de agentes.
+- [x] Validar endpoint, credencial e identificadores obrigatórios para LangGraph, Flowise, Langflow e n8n no teste de conexão do agente.
+- [x] Adicionar validações e testes específicos para Anthropic, LangGraph, Langflow e n8n antes da entrega dos conectores de IA.

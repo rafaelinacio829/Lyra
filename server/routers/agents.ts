@@ -8,11 +8,14 @@ import { requireTenantAdmin, requireTenantAccess } from "../tenantAccess";
 import { decryptTenantSecret, encryptTenantSecret, fingerprintTenantSecret } from "../tenantSecrets";
 import { assertTenantQuota } from "../planLimits";
 import { recordTenantAudit } from "../audit";
+import { aiProviderCatalog, aiProviderIds, type AiProviderId } from "../../shared/aiProviders";
+import { assertProviderConfiguration, testConfiguredAiAgent } from "../services/aiProvider";
 
 const agentInput = z.object({
   tenantId: z.number().int().positive(),
   name: z.string().min(2).max(160),
   purpose: z.string().min(8).max(280),
+  provider: z.enum(aiProviderIds),
   mode: z.enum(["chat", "streaming", "workflow", "completion"]),
   apiBaseUrl: z.string().url().max(500).optional().or(z.literal("")),
   externalAppId: z.string().max(255).optional().or(z.literal("")),
@@ -68,10 +71,10 @@ export const agentRouter = router({
         tenantId: input.tenantId,
         name: input.name.trim(),
         purpose: input.purpose.trim(),
-        provider: "dify",
+        provider: input.provider,
         mode: input.mode,
-        apiBaseUrl: input.apiBaseUrl?.trim() || "https://api.dify.ai/v1",
-        externalAppId: input.externalAppId?.trim() || null,
+        apiBaseUrl: input.apiBaseUrl?.trim() || aiProviderCatalog[input.provider].defaultBaseUrl || null,
+        externalAppId: input.externalAppId?.trim() || aiProviderCatalog[input.provider].defaultModel || null,
         instructions: input.instructions?.trim() || null,
         handoffKeywords: input.handoffKeywords,
         isActive: false,
@@ -88,8 +91,8 @@ export const agentRouter = router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
     if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado." });
-    await db.update(agentProfiles).set({ name: input.name.trim(), purpose: input.purpose.trim(), mode: input.mode, externalAppId: input.externalAppId?.trim() || null, instructions: input.instructions?.trim() || null, handoffKeywords: input.handoffKeywords }).where(eq(agentProfiles.id, agent.id));
-    await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.profile_updated", entityType: "agent", entityId: agent.id, metadata: { mode: input.mode } });
+    await db.update(agentProfiles).set({ name: input.name.trim(), purpose: input.purpose.trim(), provider: input.provider, mode: input.mode, apiBaseUrl: input.apiBaseUrl?.trim() || aiProviderCatalog[input.provider].defaultBaseUrl || null, externalAppId: input.externalAppId?.trim() || aiProviderCatalog[input.provider].defaultModel || null, instructions: input.instructions?.trim() || null, handoffKeywords: input.handoffKeywords, isActive: false, lastVerifiedAt: null }).where(eq(agentProfiles.id, agent.id));
+    await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.profile_updated", entityType: "agent", entityId: agent.id, metadata: { mode: input.mode, provider: input.provider } });
     return { success: true };
   }),
 
@@ -107,7 +110,7 @@ export const agentRouter = router({
         .limit(1);
       if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado." });
       if (input.isActive && !agent.credentialFingerprint) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure e valide a chave do Dify antes de ativar este agente." });
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure e valide a credencial do provedor antes de ativar este agente." });
       }
       if (input.isActive && !agent.isActive) await assertTenantQuota(input.tenantId, "agents");
 
@@ -137,35 +140,36 @@ export const agentRouter = router({
       return { success: true };
     }),
 
-  configureDify: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive(), apiBaseUrl: z.string().url().max(500), apiKey: z.string().min(12).max(1000) }))
+  configureProvider: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive(), apiBaseUrl: z.string().url().max(500).optional().or(z.literal("")), apiKey: z.string().min(8).max(1000), externalAppId: z.string().max(255).optional().or(z.literal("")) }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-      const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
+      const [agent] = await db.select({ id: agentProfiles.id, provider: agentProfiles.provider }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
       if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado nesta empresa." });
-      await db.update(agentProfiles).set({ apiBaseUrl: input.apiBaseUrl.replace(/\/+$/, ""), credentialCiphertext: encryptTenantSecret(input.apiKey), credentialFingerprint: fingerprintTenantSecret(input.apiKey), lastVerifiedAt: null, isActive: false }).where(eq(agentProfiles.id, agent.id));
-      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.dify_configured", entityType: "agent", entityId: agent.id, metadata: { apiBaseUrl: input.apiBaseUrl.replace(/\/+$/, "") } });
+      const provider = agent.provider as AiProviderId; const resolvedBaseUrl = input.apiBaseUrl?.trim() || aiProviderCatalog[provider].defaultBaseUrl;
+      try { assertProviderConfiguration(provider, resolvedBaseUrl, input.externalAppId); } catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Configuração do provedor inválida." }); }
+      await db.update(agentProfiles).set({ apiBaseUrl: resolvedBaseUrl.replace(/\/+$/, ""), externalAppId: input.externalAppId?.trim() || aiProviderCatalog[provider].defaultModel || null, credentialCiphertext: encryptTenantSecret(input.apiKey), credentialFingerprint: fingerprintTenantSecret(input.apiKey), lastVerifiedAt: null, isActive: false }).where(eq(agentProfiles.id, agent.id));
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.provider_configured", entityType: "agent", entityId: agent.id, metadata: { provider, apiBaseUrl: resolvedBaseUrl.replace(/\/+$/, "") } });
       return { success: true };
     }),
 
-  testDify: protectedProcedure
+  testProvider: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const [agent] = await db.select().from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
-      if (!agent?.apiBaseUrl || !agent.credentialCiphertext) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure a URL e a chave Dify antes de testar." });
+      if (!agent?.credentialCiphertext) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure a credencial do provedor antes de testar." });
       try {
-        const response = await fetch(`${agent.apiBaseUrl}/info`, { headers: { Authorization: `Bearer ${decryptTenantSecret(agent.credentialCiphertext)}` } });
-        if (!response.ok) throw new Error(`Dify respondeu ${response.status}`);
+        await testConfiguredAiAgent(agent);
         await db.update(agentProfiles).set({ lastVerifiedAt: new Date() }).where(eq(agentProfiles.id, agent.id));
-        await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.dify_tested", entityType: "agent", entityId: agent.id, metadata: { success: true } });
+        await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.provider_tested", entityType: "agent", entityId: agent.id, metadata: { provider: agent.provider, success: true } });
         return { success: true };
       } catch {
-        throw new TRPCError({ code: "BAD_GATEWAY", message: "O Dify não aceitou a configuração. Confirme a URL base e a chave da aplicação." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "O provedor não aceitou a configuração. Confirme a URL, modelo ou identificador externo e a credencial." });
       }
     }),
 });
