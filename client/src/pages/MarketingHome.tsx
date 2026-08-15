@@ -1,7 +1,7 @@
 import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Bot, Check, ChevronRight, FileLock2, Layers3, MessageSquareText, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const plans = [
   { name: "Starter", price: "R$ 299", detail: "Para começar com IA e uma operação enxuta.", limits: ["3 membros", "2 agentes", "1.500 conversas/mês"] },
@@ -10,6 +10,7 @@ const plans = [
 ];
 
 export default function MarketingHome() {
+  const [, setLocation] = useLocation();
   return (
     <div className="min-h-screen overflow-hidden bg-[#f8f7f4] text-[#15202b]">
       <header className="relative z-20 mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
@@ -29,7 +30,7 @@ export default function MarketingHome() {
         </nav>
         <div className="flex items-center gap-3">
           <Button variant="ghost" className="hidden text-[#384b57] sm:inline-flex" onClick={() => startLogin()}>Entrar</Button>
-          <Button onClick={() => startLogin()} className="rounded-full bg-[#162b37] px-5 text-white hover:bg-[#264351]">Começar agora <ArrowRight className="ml-1 h-4 w-4" /></Button>
+          <Button onClick={() => setLocation("/onboarding")} className="rounded-full bg-[#162b37] px-5 text-white hover:bg-[#264351]">Começar agora <ArrowRight className="ml-1 h-4 w-4" /></Button>
         </div>
       </header>
 
@@ -48,7 +49,7 @@ export default function MarketingHome() {
               Centralize WhatsApp, agentes de IA, ERP e equipes em uma operação segura, mensurável e pronta para escalar com cada cliente.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" onClick={() => startLogin()} className="h-12 rounded-full bg-[#b8ef65] px-6 font-semibold text-[#172c26] shadow-[0_12px_28px_rgba(111,164,52,0.26)] hover:bg-[#c6f781]">Criar minha operação <ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <Button size="lg" onClick={() => setLocation("/onboarding")} className="h-12 rounded-full bg-[#b8ef65] px-6 font-semibold text-[#172c26] shadow-[0_12px_28px_rgba(111,164,52,0.26)] hover:bg-[#c6f781]">Criar minha operação <ArrowRight className="ml-2 h-4 w-4" /></Button>
               <a href="#produto" className="inline-flex h-12 items-center justify-center rounded-full border border-[#cfd9d4] bg-white/60 px-6 text-sm font-semibold text-[#334855] transition-colors hover:bg-white">Conhecer a plataforma <ChevronRight className="ml-1 h-4 w-4" /></a>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#60727a]">

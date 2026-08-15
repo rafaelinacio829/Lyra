@@ -49,3 +49,6 @@
 - [x] Adicionar testes Vitest para checkout, portal, consulta de faturas e processamento real do webhook Stripe.
 - [x] Adicionar UI para editar times, remover membros de forma explícita e validar presença e carga de trabalho com testes.
 - [x] Corrigir o estado sem tenant nos painéis autenticados para evitar carregamento contínuo e direcionar o usuário ao onboarding.
+- [x] Avaliar provedores alternativos ao Dify para agentes por tenant, priorizando APIs, privacidade, custo e encaixe no adaptador de IA existente.
+- [ ] Ampliar o catálogo multitenant de IA com OpenAI direto, Google Gemini/ADK, Anthropic Claude, LangGraph e conectores compatíveis com Flowise, Langflow e n8n.
+- [x] Corrigir a jornada do CTA "Criar minha operação" para explicar a autenticação necessária e evitar a percepção de cadastro indevido na Manus.

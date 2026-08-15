@@ -8,8 +8,9 @@ import { trpc } from "@/lib/trpc";
 import { Bot, CheckCircle2, CircleOff, KeyRound, Loader2, Plus, ShieldCheck, Sparkles, TestTube2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { AiProviderId } from "@shared/aiProviders";
 
-type Agent = { id: number; name: string; purpose: string; provider: "dify" | "native" | "other"; mode: "chat" | "streaming" | "workflow" | "completion"; apiBaseUrl: string | null; externalAppId: string | null; instructions: string | null; handoffKeywords: unknown; fallbackAgentId: number | null; isActive: boolean; isDefault: boolean; credentialConfigured: string | null; lastVerifiedAt: Date | null; updatedAt: Date };
+type Agent = { id: number; name: string; purpose: string; provider: AiProviderId; mode: "chat" | "streaming" | "workflow" | "completion"; apiBaseUrl: string | null; externalAppId: string | null; instructions: string | null; handoffKeywords: unknown; fallbackAgentId: number | null; isActive: boolean; isDefault: boolean; credentialConfigured: string | null; lastVerifiedAt: Date | null; updatedAt: Date };
 
 export default function AgentsPage() {
   const tenants = trpc.tenant.mine.useQuery();

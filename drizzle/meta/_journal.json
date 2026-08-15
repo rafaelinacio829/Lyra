@@ -36,6 +36,13 @@
       "when": 1786757752799,
       "tag": "0004_sticky_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786760604966,
+      "tag": "0005_lyrical_gambit",
+      "breakpoints": true
     }
   ]
 }

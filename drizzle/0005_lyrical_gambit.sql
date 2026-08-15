@@ -1,0 +1,1 @@
+ALTER TABLE `agent_profiles` MODIFY COLUMN `agent_provider` enum('dify','openai','anthropic','gemini','langgraph','flowise','langflow','n8n','native','other') NOT NULL DEFAULT 'dify';
