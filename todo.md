@@ -77,4 +77,4 @@
 - [x] Validar textos, testes e rotas principais após o reposicionamento generalista.
 - [x] Generalizar os textos residuais de finanças nas telas de integrações, arquivos privados e ERP opcional.
 - [x] Validar explicitamente as rotas públicas e o acesso protegido às telas impactadas após o reposicionamento: landing, planos, login, onboarding, agentes, integrações e ERP.
-- [ ] Validar visualmente as telas de agentes, integrações e ERP com uma sessão autenticada de tenant após a ativação local de primeiro acesso.
+- [x] Validar visualmente as telas de agentes, integrações e ERP com uma sessão autenticada de tenant após a ativação local de primeiro acesso; a rota de cobrança também carregou com plano, pacotes adicionais e sem erros no console.
