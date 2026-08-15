@@ -64,7 +64,7 @@
 - [x] Corrigir o erro em produção da rota de cobrança `/app/billing` e adicionar cobertura de regressão.
 - [x] Adicionar teste de regressão para renderização estável de `/app/billing` durante a transição de tenant e consultas.
 - [x] Criar teste runtime de `/app/billing` que simule transição de tenant e queries, assegurando estabilidade de hooks em re-renderizações.
-- [ ] Validar a rota `/app/billing` na versão publicada após entregar a correção de hooks.
+- [x] Validar a rota `/app/billing` na versão publicada após entregar a correção de hooks; acesso sem sessão encaminha à autenticação local sem erro de execução.
 - [x] Substituir o login Manus por autenticação própria no banco, com cadastro, senha segura, sessão, logout e fluxo de primeiro acesso do Lyra.
 - [ ] Implementar recuperação e redefinição de senha por e-mail após a verificação do domínio remetente e a ativação do provedor transacional.
 - [ ] Adicionar testes de recuperação e redefinição de senha junto ao fluxo de e-mail transacional.
