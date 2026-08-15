@@ -1,19 +1,19 @@
-# Arquitetura do Lyra Omnichannel SaaS
+# Arquitetura do Flow One Omnichannel SaaS
 
 ## Objetivo do produto
 
-O Lyra é uma plataforma SaaS de atendimento omnichannel para empresas de qualquer segmento que utilizam canais de conversa como parte crítica de relacionamento, vendas, suporte, agendamento, operações e pós-venda. Cada empresa será um **tenant isolado**, com usuários, conversas, contatos, agentes de IA, integrações, documentos, métricas e assinatura próprios.
+O Flow One é uma plataforma SaaS de atendimento omnichannel para empresas de qualquer segmento que utilizam canais de conversa como parte crítica de relacionamento, vendas, suporte, agendamento, operações e pós-venda. Cada empresa será um **tenant isolado**, com usuários, conversas, contatos, agentes de IA, integrações, documentos, métricas e assinatura próprios.
 
 > A regra central do produto é simples: nenhum dado operacional, segredo ou arquivo de um tenant pode ser listado, modificado, processado ou baixado por outro tenant.
 
 ## Estratégia de agentes de IA
 
-O produto terá uma camada de provedores de IA. Na primeira versão comercial, o provedor suportado será o **Dify**, mas a interface do SaaS não ficará acoplada a ele. Administradores de cada tenant configurarão perfis de agentes dentro do Lyra, com nome, finalidade, canal, modo de execução, regras de transferência, palavras-chave, horário de funcionamento, inputs aceitos e agente ativo.
+O produto terá uma camada de provedores de IA. Na primeira versão comercial, o provedor suportado será o **Dify**, mas a interface do SaaS não ficará acoplada a ele. Administradores de cada tenant configurarão perfis de agentes dentro do Flow One, com nome, finalidade, canal, modo de execução, regras de transferência, palavras-chave, horário de funcionamento, inputs aceitos e agente ativo.
 
 | Caminho | Como funciona para o cliente | Vantagens | Limitações | Indicação |
 |---|---|---|---|---|
-| **Perfis de agente no Lyra conectados ao Dify** | O cliente cria e controla os perfis, regras e ativação no Lyra; cada perfil aponta para uma aplicação Dify por meio de chave de API isolada. | Entrada rápida no mercado, aproveita fluxos, RAG e ferramentas já montadas no Dify. | A criação visual completa do fluxo ainda ocorre no Dify Studio. | Primeira versão comercial. |
-| **Construtor nativo de agentes no Lyra** | O cliente monta prompts, fluxos, fontes de conhecimento e automações diretamente no Lyra. | Experiência totalmente proprietária e sem painel externo para o cliente. | Requer motor de workflow, RAG, observabilidade e infraestrutura de IA próprios. | Evolução de produto após validação comercial. |
+| **Perfis de agente no Flow One conectados ao Dify** | O cliente cria e controla os perfis, regras e ativação no Flow One; cada perfil aponta para uma aplicação Dify por meio de chave de API isolada. | Entrada rápida no mercado, aproveita fluxos, RAG e ferramentas já montadas no Dify. | A criação visual completa do fluxo ainda ocorre no Dify Studio. | Primeira versão comercial. |
+| **Construtor nativo de agentes no Flow One** | O cliente monta prompts, fluxos, fontes de conhecimento e automações diretamente no Flow One. | Experiência totalmente proprietária e sem painel externo para o cliente. | Requer motor de workflow, RAG, observabilidade e infraestrutura de IA próprios. | Evolução de produto após validação comercial. |
 
 A integração inicial tratará a chave do Dify como credencial de uma aplicação, respeitando o modelo da API oficial: cada chave é associada a um app e as chamadas distinguem cada contato pelo identificador `user`. O adaptador aceitará bases Dify Cloud e auto-hospedadas, além de modos chat, streaming, workflow e completion quando compatíveis com o perfil selecionado. [1]
 

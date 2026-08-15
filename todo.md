@@ -69,6 +69,7 @@
 - [ ] Implementar recuperação e redefinição de senha por e-mail após a verificação do domínio remetente e a ativação do provedor transacional.
 - [ ] Adicionar testes de recuperação e redefinição de senha junto ao fluxo de e-mail transacional.
 - [ ] Validar em produção a ativação da primeira senha local e o login com redirecionamento ao tenant.
+- [ ] Registrar evidência reproduzível do fluxo de primeiro acesso local e do redirecionamento automático após o submit de login.
 - [x] Permitir que o super-admin altere plano, método de cobrança e estado de assinatura de qualquer cliente.
 - [x] Permitir que o tenant adquira capacidade adicional de usuários, agentes e mensagens com aplicação técnica dos novos limites.
 - [x] Enviar a versão comercial concluída para o repositório GitHub conectado do usuário.
@@ -93,3 +94,5 @@
 - [x] Adicionar cenário reproduzível de renovação mensal por boleto, com fatura, pagamento, falha e sincronização persistida de tenant e assinatura.
 - [ ] Homologar em produção, com credenciais reais de cada tenant, a WhatsApp Cloud API, a API de ERP personalizada e os métodos habilitados no Stripe.
 - [x] Sincronizar no GitHub todas as alterações da expansão operacional.
+- [x] Substituir a marca exibida Lyra por Flow One em telas, metadados, aplicativo instalável e documentação.
+- [x] Validar textos, testes, build, publicação e sincronização do rebranding Flow One.

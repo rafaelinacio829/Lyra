@@ -19,7 +19,7 @@ function originFromRequest(req: { headers: Record<string, string | string[] | un
 
 async function createStripePrice(planCode: "starter" | "growth" | "scale", interval: "monthly" | "annual") {
   const plan = getBillingPlan(planCode);
-  const product = await stripe.products.create({ name: `Lyra ${plan.name}`, description: plan.description, metadata: { plan_code: planCode } });
+  const product = await stripe.products.create({ name: `Flow One ${plan.name}`, description: plan.description, metadata: { plan_code: planCode } });
   return stripe.prices.create({ currency: "brl", unit_amount: interval === "annual" ? plan.annualCents : plan.monthlyCents, recurring: { interval: interval === "annual" ? "year" : "month" }, product: product.id, metadata: { plan_code: planCode } });
 }
 
@@ -68,7 +68,7 @@ export const billingRouter = router({
         allow_promotion_codes: true,
         ...(paymentMethodTypes ? { payment_method_types: paymentMethodTypes } : {}),
         ...(input.paymentMethod === "boleto" ? { billing_address_collection: "required" as const, tax_id_collection: { enabled: true } } : {}),
-        line_items: [{ price_data: { currency: "brl", product_data: { name: `Lyra ${plan.name}`, description: plan.description }, unit_amount: amount, recurring: { interval: input.interval === "annual" ? "year" : "month" } }, quantity: 1 }],
+        line_items: [{ price_data: { currency: "brl", product_data: { name: `Flow One ${plan.name}`, description: plan.description }, unit_amount: amount, recurring: { interval: input.interval === "annual" ? "year" : "month" } }, quantity: 1 }],
         metadata: { tenant_id: String(input.tenantId), user_id: String(ctx.user.id), plan_code: input.planCode, payment_method: input.paymentMethod, customer_email: tenant.primaryEmail, customer_name: tenant.name },
         subscription_data: { metadata: { tenant_id: String(input.tenantId), plan_code: input.planCode, payment_method: input.paymentMethod }, ...(trialEnd ? { trial_end: trialEnd } : {}), ...(input.paymentMethod === "boleto" ? { collection_method: "charge_automatically" as const, payment_settings: { payment_method_types: ["boleto"] } } : {}) },
         success_url: `${originFromRequest(ctx.req)}/app/billing?success=1`,
@@ -87,7 +87,7 @@ export const billingRouter = router({
     const item = capacityAddonCatalog[input.type]; const result = await db.insert(capacityAddons).values({ tenantId: input.tenantId, type: input.type, quantity: input.quantity, unitPriceCents: item.monthlyCents, billingMethod: "stripe", status: "pending" }); const addonId = Number(result[0].insertId);
     let customerId = subscription.providerCustomerId;
     if (!customerId) { const customer = await stripe.customers.create({ email: tenant.primaryEmail, name: tenant.name, metadata: { tenant_id: String(tenant.id) } }); customerId = customer.id; await db.update(subscriptions).set({ providerCustomerId: customerId }).where(eq(subscriptions.id, subscription.id)); }
-    const session = await stripe.checkout.sessions.create({ mode: "subscription", customer: customerId, allow_promotion_codes: true, line_items: [{ price_data: { currency: "brl", product_data: { name: `Lyra · ${item.label}`, description: item.description }, unit_amount: item.monthlyCents, recurring: { interval: "month" } }, quantity: input.quantity }], metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type }, subscription_data: { metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type } }, success_url: `${originFromRequest(ctx.req)}/app/billing?addon=success`, cancel_url: `${originFromRequest(ctx.req)}/app/billing?addon=canceled` });
+    const session = await stripe.checkout.sessions.create({ mode: "subscription", customer: customerId, allow_promotion_codes: true, line_items: [{ price_data: { currency: "brl", product_data: { name: `Flow One · ${item.label}`, description: item.description }, unit_amount: item.monthlyCents, recurring: { interval: "month" } }, quantity: input.quantity }], metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type }, subscription_data: { metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type } }, success_url: `${originFromRequest(ctx.req)}/app/billing?addon=success`, cancel_url: `${originFromRequest(ctx.req)}/app/billing?addon=canceled` });
     if (!session.url) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Checkout não retornou URL." }); await db.update(capacityAddons).set({ providerCheckoutSessionId: session.id }).where(eq(capacityAddons.id, addonId)); return { url: session.url, amountCents: addonAmount(input.type, input.quantity) };
   }),
 

@@ -1,13 +1,13 @@
 {
-  "name": "Lyra Omnichannel",
-  "short_name": "Lyra",
-  "description": "Operação omnichannel do Lyra no celular.",
+  "name": "Flow One Omnichannel",
+  "short_name": "Flow One",
+  "description": "Operação omnichannel do Flow One no celular.",
   "start_url": "/app",
   "display": "standalone",
   "background_color": "#f4f8f5",
   "theme_color": "#1d3844",
   "lang": "pt-BR",
   "icons": [
-    { "src": "/manus-storage/lyra-icon_e5188670.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/manus-storage/flow-one-app-icon_af37f7d0.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

@@ -10,11 +10,11 @@
 
 ## Configuração por tenant
 
-| Integração | Dados necessários | Validação no Lyra |
+| Integração | Dados necessários | Validação no Flow One |
 |---|---|---|
 | Dify | URL base da instância, chave da aplicação, tipo de agente, regras de handoff. | O administrador cria o perfil, informa a chave no cofre e só ativa o agente após a validação. |
-| Z-API | ID da instância, token da instância e Client-Token. | O Lyra gera URL exclusiva de webhook; a ativação confirma a configuração no provedor. |
-| WhatsApp Cloud API | Phone Number ID, token de sistema, App Secret e versão Graph API. | O Lyra gera URL e token de verificação, valida a conexão e só processa webhooks assinados. |
+| Z-API | ID da instância, token da instância e Client-Token. | O Flow One gera URL exclusiva de webhook; a ativação confirma a configuração no provedor. |
+| WhatsApp Cloud API | Phone Number ID, token de sistema, App Secret e versão Graph API. | O Flow One gera URL e token de verificação, valida a conexão e só processa webhooks assinados. |
 | ERP personalizado | URL HTTPS pública, caminho de saúde, caminho de consulta e token de API. | O botão de teste valida a conexão; destinos locais são bloqueados e a configuração só é ativada em caso de sucesso. |
 | Stripe | Configuração gerenciada pela plataforma, sem inserção de chave pelo tenant. | Checkout para cartão, boleto ou método automático; portal, faturas e webhook usam a assinatura associada ao tenant. |
 
@@ -22,7 +22,7 @@
 
 - Não envie chaves de integração em mensagens, planilhas ou capturas de tela. O painel só apresenta indicação de credencial configurada e impressão digital, nunca o valor da chave.
 - Ative uma instância Z-API por tenant e confirme que cada provedor aponta para o webhook único exibido no painel.
-- Para a WhatsApp Cloud API, registre no painel da Meta a URL e o token de verificação gerados pelo Lyra e assine o campo de webhook `messages`.
+- Para a WhatsApp Cloud API, registre no painel da Meta a URL e o token de verificação gerados pelo Flow One e assine o campo de webhook `messages`.
 - Use um agente por finalidade operacional e configure palavras-chave de transferência antes de automatizar fluxos de suporte, vendas, agendamento, pós-venda ou qualquer outra jornada do cliente.
 - Valide a API do ERP do cliente em ambiente de homologação antes de permitir consultas em produção; essa integração é opcional e o contrato de referência é adaptado ao processo de cada empresa.
 - Para documentos privados, mantenha a regra de acesso por tenant e use apenas URLs assinadas de curta duração emitidas pelo servidor.

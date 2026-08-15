@@ -75,5 +75,5 @@ export async function testConfiguredAiAgent(agent: ConfiguredAiAgent) {
   if (provider === "gemini") { const url = new URL(`${baseUrl(agent)}/models`); url.searchParams.set("key", token(agent)); const response = await fetch(url); if (!response.ok) throw new Error(`Gemini respondeu ${response.status}`); return; }
   if (provider === "anthropic") { await invokeAnthropic(agent, { tenantId: 0, conversationId: 0, contactId: 0, contactPhone: "", body: "Responda somente: ok" }); return; }
   assertProviderConfiguration(provider, agent.apiBaseUrl, agent.externalAppId);
-  await invokeCompatibleEndpoint(agent, { tenantId: 0, conversationId: 0, contactId: 0, contactPhone: "", body: "Teste de conectividade Lyra: responda somente ok." });
+  await invokeCompatibleEndpoint(agent, { tenantId: 0, conversationId: 0, contactId: 0, contactPhone: "", body: "Teste de conectividade Flow One: responda somente ok." });
 }

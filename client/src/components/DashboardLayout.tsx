@@ -92,7 +92,7 @@ export default function DashboardLayout({
   if (memberships.isLoading) return <DashboardLayoutSkeleton />;
 
   if (!memberships.data?.length && location !== "/app/platform") {
-    return <div className="grid min-h-screen place-items-center bg-[#f7f8f5] p-6"><section className="max-w-lg rounded-[2rem] border border-[#dce8df] bg-white p-8 text-center shadow-sm"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Primeiro ambiente</p><h1 className="mt-3 font-display text-4xl tracking-[-.04em] text-[#213c47]">Crie a empresa que vai operar no Lyra.</h1><p className="mt-4 text-sm leading-6 text-[#687980]">Ainda não há uma empresa vinculada ao seu acesso. O onboarding cria o ambiente, o primeiro administrador e a configuração inicial de forma segura.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Button onClick={() => setLocation("/onboarding")} className="rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">Criar meu ambiente</Button>{user.role === "admin" && <Button variant="outline" onClick={() => setLocation("/app/platform")} className="rounded-full">Abrir plataforma</Button>}</div></section></div>;
+    return <div className="grid min-h-screen place-items-center bg-[#f7f8f5] p-6"><section className="max-w-lg rounded-[2rem] border border-[#dce8df] bg-white p-8 text-center shadow-sm"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Primeiro ambiente</p><h1 className="mt-3 font-display text-4xl tracking-[-.04em] text-[#213c47]">Crie a empresa que vai operar no Flow One.</h1><p className="mt-4 text-sm leading-6 text-[#687980]">Ainda não há uma empresa vinculada ao seu acesso. O onboarding cria o ambiente, o primeiro administrador e a configuração inicial de forma segura.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Button onClick={() => setLocation("/onboarding")} className="rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">Criar meu ambiente</Button>{user.role === "admin" && <Button variant="outline" onClick={() => setLocation("/app/platform")} className="rounded-full">Abrir plataforma</Button>}</div></section></div>;
   }
 
   return (
@@ -184,7 +184,7 @@ function DashboardLayoutContent({
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-display text-xl tracking-tight truncate text-white">
-                    lyra
+                    Flow One
                   </span>
                 </div>
               ) : null}

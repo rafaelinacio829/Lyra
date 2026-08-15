@@ -1,4 +1,4 @@
-# Operação recorrente do Lyra
+# Operação recorrente do Flow One
 
 ## Pré-requisito de publicação
 
