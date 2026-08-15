@@ -27,7 +27,7 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
-export const adminProcedure = t.procedure.use(
+export const platformAdminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
@@ -43,3 +43,5 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+export const adminProcedure = platformAdminProcedure;

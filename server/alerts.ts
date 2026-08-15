@@ -1,5 +1,6 @@
 export type OperationalAlertInput = { unassignedConversations: number; slaRiskConversations: number; trialEndsAt?: Date | null; now?: Date };
 export type PreparedOperationalAlert = { kind: "unassigned" | "sla" | "trial"; subject: string; body: string };
+export type WeeklySummaryInput = { tenantName: string; receivedMessages: number; resolvedConversations: number; awaitingHuman: number; firstResponseMinutes: number | null };
 
 export function prepareOperationalAlerts(input: OperationalAlertInput): PreparedOperationalAlert[] {
   const now = input.now ?? new Date(); const alerts: PreparedOperationalAlert[] = [];
@@ -9,7 +10,12 @@ export function prepareOperationalAlerts(input: OperationalAlertInput): Prepared
   return alerts;
 }
 
-export async function deliverOperationalEmail(input: { to: string; alert: PreparedOperationalAlert }) {
+export function prepareWeeklySummary(input: WeeklySummaryInput): { subject: string; body: string } {
+  const response = input.firstResponseMinutes === null ? "não disponível" : `${Math.round(input.firstResponseMinutes)} min`;
+  return { subject: `Lyra: resumo semanal de ${input.tenantName}`, body: `Resumo operacional de ${input.tenantName}: ${input.receivedMessages} mensagem(ns) recebida(s), ${input.resolvedConversations} conversa(s) resolvida(s), ${input.awaitingHuman} conversa(s) aguardando atendimento humano e primeira resposta média de ${response}.` };
+}
+
+export async function deliverOperationalEmail(input: { to: string; alert: PreparedOperationalAlert | { subject: string; body: string } }) {
   const apiKey = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM;
   if (!apiKey || !from) return { delivered: false as const, reason: "email_provider_not_configured" as const };
   const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: input.to, subject: input.alert.subject, text: input.alert.body }) });

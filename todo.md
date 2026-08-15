@@ -21,14 +21,14 @@
 - [x] Adicionar cobrança recorrente com Stripe, planos, assinaturas, trial, upgrades, downgrades, faturas e webhooks de pagamento.
 - [x] Aplicar limites técnicos de cada plano para conversas, mensagens, agentes e armazenamento, com validação server-side.
 - [x] Implementar página de billing para administrador do tenant com seleção de plano e portal de cobrança.
-- [ ] Implementar alertas por e-mail para conversas sem atendente, risco de SLA, expiração de trial e resumo semanal.
+- [x] Implementar alertas por e-mail para conversas sem atendente, risco de SLA, expiração de trial e resumo semanal.
 - [ ] Ativar o provedor de e-mail e os alertas transacionais após o domínio remetente ser verificado e a chave de API ser fornecida.
 - [ ] Criar tarefas recorrentes idempotentes para trial, relatórios e alertas somente após o produto estar publicado.
-- [ ] Criar testes Vitest para isolamento de tenant, controle de papel, limites de plano, cobrança e fluxos críticos de conversas.
+- [x] Criar testes Vitest para isolamento de tenant, controle de papel, limites de plano, cobrança e fluxos críticos de conversas.
 - [x] Executar verificação de tipos, testes, revisão de logs e captura visual desktop/mobile antes da entrega.
 - [x] Preparar documentação de configuração das integrações, operação segura e passos de publicação.
 - [x] Implementar guarda de super-admin no servidor e aplicá-la às operações de plataforma.
-- [ ] Criar procedures e revisão de rotas para garantir filtragem obrigatória por tenant em toda consulta e mutação do domínio.
+- [x] Criar procedures e revisão de rotas para garantir filtragem obrigatória por tenant em toda consulta e mutação do domínio.
 - [x] Criar rota dedicada de preços com comparação completa de planos e limites técnicos, conectada à landing page.
 - [x] Implementar no dashboard uma seção de alertas reais por tenant para conversas sem atendente, risco de SLA, trial próximo do fim e limite de plano próximo do esgotamento.
 - [x] Adicionar consulta de backend que calcule e retorne alertas operacionais por tenant ao dashboard.
@@ -41,11 +41,11 @@
 - [x] Adicionar testes Vitest ao módulo de relatórios, validando taxa de reabertura e volume por fila a partir de agregados de conversas do tenant.
 - [ ] Adicionar testes de ciclo de vida integrados com banco para transferência e reabertura, confirmando a persistência de `reopenedAt` usada pelos fluxos de transferência e webhook Z-API.
 - [ ] Adicionar cenário ponta a ponta com banco para `reports`, `conversations.transfer` e webhook Z-API, validando persistência de `reopenedAt` e cálculo final do relatório.
-- [ ] Criar procedures explícitas para super-admin, administrador do tenant e atendente, com testes que neguem acesso cruzado entre tenants.
+- [x] Criar procedures explícitas para super-admin, administrador do tenant e atendente, com testes que neguem acesso cruzado entre tenants.
 - [x] Completar edição e remoção de contatos, membros e times, além de validar na UI os fluxos de presença e carga de trabalho por atendente.
 - [x] Preparar regras de alerta e adaptador de entrega de e-mail que permanece desativado sem domínio remetente e credenciais válidas.
-- [ ] Auditar router por router e adicionar testes Vitest para comprovar a filtragem obrigatória por tenant em consultas e mutações do domínio.
-- [ ] Auditar todos os routers com testes Vitest de acesso cruzado entre tenants para comprovar filtragem obrigatória por tenant.
-- [ ] Adicionar testes Vitest para checkout, portal, consulta de faturas e processamento real do webhook Stripe.
-- [ ] Adicionar UI para editar times, remover membros de forma explícita e validar presença e carga de trabalho com testes.
+- [x] Auditar router por router e adicionar testes Vitest para comprovar a filtragem obrigatória por tenant em consultas e mutações do domínio.
+- [x] Auditar todos os routers com testes Vitest de acesso cruzado entre tenants para comprovar filtragem obrigatória por tenant.
+- [x] Adicionar testes Vitest para checkout, portal, consulta de faturas e processamento real do webhook Stripe.
+- [x] Adicionar UI para editar times, remover membros de forma explícita e validar presença e carga de trabalho com testes.
 - [x] Corrigir o estado sem tenant nos painéis autenticados para evitar carregamento contínuo e direcionar o usuário ao onboarding.
