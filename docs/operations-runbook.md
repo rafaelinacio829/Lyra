@@ -13,7 +13,7 @@ Os alertas recorrentes não devem usar temporizadores dentro do servidor. A plat
 
 ## E-mail transacional
 
-O SaaS ainda não contém uma credencial de provedor de e-mail transacional. Antes de habilitar esses trabalhos em produção, deve ser configurado um provedor dedicado e verificado, como Resend, Postmark ou Amazon SES. A integração deverá manter apenas a credencial server-side e um registro mínimo de entrega; nunca deve persistir o conteúdo completo de conversas ou documentos financeiros no provedor de e-mail.
+O SaaS ainda não contém uma credencial de provedor de e-mail transacional. Antes de habilitar esses trabalhos em produção, deve ser configurado um provedor dedicado e verificado, como Resend, Postmark ou Amazon SES. A integração deverá manter apenas a credencial server-side e um registro mínimo de entrega; nunca deve persistir o conteúdo completo de conversas ou documentos privados no provedor de e-mail.
 
 ## Procedimento seguro de ativação
 

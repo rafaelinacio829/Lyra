@@ -72,3 +72,9 @@
 - [x] Permitir que o super-admin altere plano, método de cobrança e estado de assinatura de qualquer cliente.
 - [x] Permitir que o tenant adquira capacidade adicional de usuários, agentes e mensagens com aplicação técnica dos novos limites.
 - [x] Enviar a versão comercial concluída para o repositório GitHub conectado do usuário.
+- [x] Mapear e substituir referências de interface, exemplos e mensagens que limitem o Lyra ao setor financeiro.
+- [x] Reposicionar a landing page, onboarding e documentação como plataforma omnichannel multissetorial.
+- [x] Validar textos, testes e rotas principais após o reposicionamento generalista.
+- [x] Generalizar os textos residuais de finanças nas telas de integrações, arquivos privados e ERP opcional.
+- [x] Validar explicitamente as rotas públicas e o acesso protegido às telas impactadas após o reposicionamento: landing, planos, login, onboarding, agentes, integrações e ERP.
+- [ ] Validar visualmente as telas de agentes, integrações e ERP com uma sessão autenticada de tenant após a ativação local de primeiro acesso.

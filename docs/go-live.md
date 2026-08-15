@@ -21,8 +21,8 @@
 
 - Não envie chaves de integração em mensagens, planilhas ou capturas de tela. O painel só apresenta indicação de credencial configurada e impressão digital, nunca o valor da chave.
 - Ative uma instância Z-API por tenant e confirme que cada provedor aponta para o webhook único exibido no painel.
-- Use um agente Dify por finalidade operacional e configure palavras-chave de transferência antes de automatizar conversas financeiras.
-- Valide as permissões OAuth do NetSuite em sandbox antes de permitir consulta de documentos financeiros em produção.
+- Use um agente por finalidade operacional e configure palavras-chave de transferência antes de automatizar fluxos de suporte, vendas, agendamento, pós-venda ou qualquer outra jornada do cliente.
+- Valide as permissões OAuth do NetSuite em sandbox antes de permitir consultas ao ERP em produção; essa integração é opcional e não limita o uso do Lyra a um segmento específico.
 - Para documentos privados, mantenha a regra de acesso por tenant e use apenas URLs assinadas de curta duração emitidas pelo servidor.
 
 ## Após publicar

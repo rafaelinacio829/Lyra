@@ -2,7 +2,7 @@
 
 ## Objetivo do produto
 
-O Lyra será uma plataforma SaaS de atendimento omnichannel para empresas que usam WhatsApp como canal crítico de relacionamento financeiro, cobrança, suporte e pós-venda. Cada empresa será um **tenant isolado**, com usuários, conversas, contatos, agentes de IA, integrações, documentos, métricas e assinatura próprios.
+O Lyra é uma plataforma SaaS de atendimento omnichannel para empresas de qualquer segmento que utilizam canais de conversa como parte crítica de relacionamento, vendas, suporte, agendamento, operações e pós-venda. Cada empresa será um **tenant isolado**, com usuários, conversas, contatos, agentes de IA, integrações, documentos, métricas e assinatura próprios.
 
 > A regra central do produto é simples: nenhum dado operacional, segredo ou arquivo de um tenant pode ser listado, modificado, processado ou baixado por outro tenant.
 
@@ -41,9 +41,9 @@ Todas as entidades de domínio devem conter `tenantId`, exceto as entidades de p
 
 Os planos não serão apenas elementos de marketing. Cada plano terá limites aplicáveis no servidor para membros ativos, conversas mensais, mensagens, agentes, integrações, armazenamento e retenção de histórico. Antes de criar recursos de alto custo, o servidor calculará o consumo do período do tenant e bloqueará a operação quando o limite estiver esgotado, mantendo uma trilha de auditoria.
 
-## Arquivos e documentos financeiros
+## Arquivos e documentos privados
 
-Mídias, boletos, notas fiscais e arquivos de conversa serão armazenados em armazenamento privado. O banco manterá apenas chave, metadados, tamanho, tipo, tenant, remetente, classificação e período de retenção. O cliente receberá URL assinada de curta duração somente depois que a autorização do tenant for confirmada. Nenhum documento financeiro será salvo no diretório público do aplicativo.
+Mídias, documentos de atendimento, comprovantes, arquivos de ERP e exportações de conversa serão armazenados em armazenamento privado. O banco manterá apenas chave, metadados, tamanho, tipo, tenant, remetente, classificação e período de retenção. O cliente receberá URL assinada de curta duração somente depois que a autorização do tenant for confirmada. Nenhum documento privado será salvo no diretório público do aplicativo.
 
 ## Integrações e eventos
 
