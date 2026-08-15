@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizePlatformCustomers } from "./platformMetrics";
+import { scoreCustomerHealth, summarizePlatformCustomers } from "./platformMetrics";
 
 describe("métricas comerciais de plataforma", () => {
   it("calcula clientes ativos, receita recorrente e riscos a partir de dados reais de assinatura", () => {
@@ -10,5 +10,12 @@ describe("métricas comerciais de plataforma", () => {
       { tenantStatus: "suspended", subscriptionStatus: "cancelled", monthlyPriceCents: 29900, annualPriceCents: 299000, billingInterval: "monthly", trialEndsAt: null },
     ], new Date("2026-08-14T00:00:00Z"));
     expect(summary).toMatchObject({ totalCustomers: 4, activeCustomers: 2, trials: 1, paymentRisk: 1, trialEndingSoon: 1, suspended: 1, mrrCents: 88150, arrCents: 1057800 });
+  });
+});
+
+describe("saúde da carteira", () => {
+  it("prioriza cobrança pendente e falta de adoção sem inventar atividade", () => {
+    expect(scoreCustomerHealth({ id: 1, tenantStatus: "active", subscriptionStatus: "past_due", monthlyPriceCents: 29900, annualPriceCents: 299000, billingInterval: "monthly", trialEndsAt: null, conversations: 0, messages: 0 })).toMatchObject({ level: "critical", reasons: ["Cobrança pendente"] });
+    expect(scoreCustomerHealth({ id: 2, tenantStatus: "active", subscriptionStatus: "active", monthlyPriceCents: 29900, annualPriceCents: 299000, billingInterval: "monthly", trialEndsAt: null, conversations: 0, messages: 0 })).toMatchObject({ level: "attention", reasons: ["Sem atividade no período"] });
   });
 });

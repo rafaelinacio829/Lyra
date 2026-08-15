@@ -115,3 +115,4 @@
 - [x] Implementar alteração de senha, listagem e revogação de sessões, trilha de auditoria e solicitação autenticada de exclusão de conta.
 - [x] Exibir saúde operacional por tenant, com estado de conexões, canais verificados, falhas e sinais acionáveis no dashboard.
 - [x] Adicionar histórico seguro de governança dos agentes, com auditoria de criação, configuração, testes, alteração de perfil e ativação.
+- [x] Adicionar saúde da carteira SaaS para super-admin, com risco de cobrança, cancelamento, trial próximo e ausência de atividade mensal.

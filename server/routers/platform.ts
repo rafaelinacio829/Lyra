@@ -1,10 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { capacityAddons, plans, subscriptions, tenants } from "../../drizzle/schema";
+import { capacityAddons, plans, subscriptions, tenants, usageCounters } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { platformAdminProcedure, router } from "../_core/trpc";
-import { summarizePlatformCustomers } from "../platformMetrics";
+import { scoreCustomerHealth, summarizePlatformCustomers } from "../platformMetrics";
 import { capacityAddonCatalog, type CapacityAddonType } from "../billing/addons";
 
 const customerSelect = { id: tenants.id, name: tenants.name, primaryEmail: tenants.primaryEmail, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, createdAt: tenants.createdAt, planCode: plans.code, planName: plans.name, monthlyPriceCents: plans.monthlyPriceCents, annualPriceCents: plans.annualPriceCents, subscriptionStatus: subscriptions.status, billingMethod: subscriptions.billingMethod, billingReference: subscriptions.billingReference, billingInterval: subscriptions.billingInterval, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd };
@@ -19,7 +19,12 @@ export const platformRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const customers = await db.select(customerSelect).from(tenants).leftJoin(subscriptions, eq(subscriptions.tenantId, tenants.id)).leftJoin(plans, eq(subscriptions.planId, plans.id)).orderBy(desc(tenants.createdAt));
-    return { metrics: summarizePlatformCustomers(customers), customers };
+    const periodKey = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit" }).format(new Date()).replace("/", "-");
+    const usage = await db.select({ tenantId: usageCounters.tenantId, conversations: usageCounters.conversations, messages: usageCounters.messages }).from(usageCounters).where(eq(usageCounters.periodKey, periodKey));
+    const usageByTenant = new Map(usage.map(item => [item.tenantId, item]));
+    const customersWithHealth = customers.map(customer => { const activity = usageByTenant.get(customer.id); return { ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0, health: scoreCustomerHealth({ ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0 }) }; });
+    const health = { critical: customersWithHealth.filter(customer => customer.health.level === "critical").length, attention: customersWithHealth.filter(customer => customer.health.level === "attention").length, healthy: customersWithHealth.filter(customer => customer.health.level === "healthy").length };
+    return { metrics: summarizePlatformCustomers(customers), customers: customersWithHealth, health };
   }),
   setTenantStatus: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), status: z.enum(["active", "suspended"]) })).mutation(async ({ input }) => {
     const db = await getDb();

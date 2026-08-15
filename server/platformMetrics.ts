@@ -11,3 +11,17 @@ export function summarizePlatformCustomers(rows: PlatformCustomerRow[], now = ne
   }
   return { totalCustomers: rows.length, activeCustomers: active, trials, paymentRisk, trialEndingSoon, suspended, mrrCents, arrCents: mrrCents * 12 };
 }
+
+export type CustomerHealthInput = PlatformCustomerRow & { id: number; cancelAtPeriodEnd?: boolean | null; conversations?: number | null; messages?: number | null };
+
+export function scoreCustomerHealth(customer: CustomerHealthInput, now = new Date()) {
+  const reasons: string[] = [];
+  if (customer.subscriptionStatus === "past_due") reasons.push("Cobrança pendente");
+  if (customer.cancelAtPeriodEnd) reasons.push("Cancelamento programado");
+  if (customer.tenantStatus === "suspended" || customer.tenantStatus === "cancelled") reasons.push("Ambiente inativo");
+  if (customer.trialEndsAt) { const days = Math.ceil((customer.trialEndsAt.getTime() - now.getTime()) / 86400000); if (days >= 0 && days <= 3) reasons.push("Trial termina em até 3 dias"); }
+  if ((customer.subscriptionStatus === "active" || customer.subscriptionStatus === "trialing") && !customer.conversations && !customer.messages) reasons.push("Sem atividade no período");
+  const level = reasons.some(reason => reason === "Cobrança pendente" || reason === "Ambiente inativo") ? "critical" : reasons.length ? "attention" : "healthy";
+  const score = level === "critical" ? 25 : level === "attention" ? 65 : 100;
+  return { level, score, reasons };
+}
