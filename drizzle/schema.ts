@@ -16,6 +16,9 @@ export const tenantStatus = mysqlEnum("tenant_status", ["trial", "active", "susp
 export const tenantRole = mysqlEnum("tenant_role", ["tenant_admin", "agent"]);
 export const memberPresence = mysqlEnum("member_presence", ["online", "busy", "away", "offline"]);
 export const subscriptionStatus = mysqlEnum("subscription_status", ["trialing", "active", "past_due", "paused", "cancelled"]);
+export const billingMethod = mysqlEnum("billing_method", ["stripe", "pix", "invoice", "bank_transfer", "manual"]);
+export const capacityAddonType = mysqlEnum("capacity_addon_type", ["members", "agents", "messages"]);
+export const capacityAddonStatus = mysqlEnum("capacity_addon_status", ["pending", "active", "past_due", "cancelled"]);
 export const agentProvider = mysqlEnum("agent_provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
 export const agentMode = mysqlEnum("agent_mode", ["chat", "streaming", "workflow", "completion"]);
 export const conversationQueue = mysqlEnum("conversation_queue", ["ai", "human", "resolved"]);
@@ -143,6 +146,8 @@ export const subscriptions = mysqlTable(
     status: subscriptionStatus.notNull().default("trialing"),
     providerCustomerId: varchar("provider_customer_id", { length: 255 }),
     providerSubscriptionId: varchar("provider_subscription_id", { length: 255 }),
+    billingMethod: billingMethod.notNull().default("stripe"),
+    billingReference: varchar("billing_reference", { length: 255 }),
     billingInterval: varchar("billing_interval", { length: 16 }).notNull().default("monthly"),
     currentPeriodEndsAt: timestamp("current_period_ends_at"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
@@ -154,6 +159,26 @@ export const subscriptions = mysqlTable(
     uniqueIndex("provider_subscription_unique").on(table.providerSubscriptionId),
     index("subscription_status_idx").on(table.status),
   ]
+);
+
+export const capacityAddons = mysqlTable(
+  "capacity_addons",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    type: capacityAddonType.notNull(),
+    quantity: int("quantity").notNull(),
+    unitPriceCents: int("unit_price_cents").notNull(),
+    status: capacityAddonStatus.notNull().default("pending"),
+    billingMethod: billingMethod.notNull().default("stripe"),
+    providerCheckoutSessionId: varchar("provider_checkout_session_id", { length: 255 }).unique(),
+    providerSubscriptionId: varchar("provider_subscription_id", { length: 255 }),
+    startsAt: timestamp("starts_at"),
+    endsAt: timestamp("ends_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("capacity_addon_tenant_status_idx").on(table.tenantId, table.status), index("capacity_addon_type_idx").on(table.tenantId, table.type)]
 );
 
 export const usageCounters = mysqlTable(

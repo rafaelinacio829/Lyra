@@ -17,11 +17,11 @@ const activePlan = { status: "active", includedMembers: 5, includedAgents: 2, in
 describe("limites de plano", () => {
   beforeEach(() => vi.clearAllMocks());
   it("permite operação que permanece dentro da quota do tenant", async () => {
-    queueRows([activePlan], [{ value: 4 }]);
+    queueRows([activePlan], [{}], [{ value: 4 }]);
     await expect(assertTenantQuota(3, "members")).resolves.toBeUndefined();
   });
   it("bloqueia operação que ultrapassa a quota técnica do plano", async () => {
-    queueRows([activePlan], [{ value: 5 }]);
+    queueRows([activePlan], [{}], [{ value: 5 }]);
     await expect(assertTenantQuota(3, "members")).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringContaining("limite de members") });
   });
   it("bloqueia novas operações quando a assinatura não está elegível", async () => {

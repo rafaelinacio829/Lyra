@@ -1,12 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { plans, subscriptions, tenants } from "../../drizzle/schema";
+import { capacityAddons, plans, subscriptions, tenants } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { getBillingPlan } from "../billing/products";
 import { stripe } from "../billing/stripe";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAdmin } from "../tenantAccess";
+import { addonAmount, capacityAddonCatalog, type CapacityAddonType } from "../billing/addons";
 
 function originFromRequest(req: { headers: Record<string, string | string[] | undefined>; protocol: string; get: (header: string) => string | undefined }) {
   const origin = req.headers.origin;
@@ -27,9 +28,18 @@ export const billingRouter = router({
     await requireTenantAdmin(ctx.user.id, input.tenantId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-    const [record] = await db.select({ tenantName: tenants.name, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, planCode: plans.code, planName: plans.name, status: subscriptions.status, interval: subscriptions.billingInterval, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, providerCustomerId: subscriptions.providerCustomerId, providerSubscriptionId: subscriptions.providerSubscriptionId }).from(subscriptions).innerJoin(tenants, eq(subscriptions.tenantId, tenants.id)).innerJoin(plans, eq(subscriptions.planId, plans.id)).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
+    const [record] = await db.select({ tenantName: tenants.name, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, planCode: plans.code, planName: plans.name, status: subscriptions.status, interval: subscriptions.billingInterval, billingMethod: subscriptions.billingMethod, billingReference: subscriptions.billingReference, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, providerCustomerId: subscriptions.providerCustomerId, providerSubscriptionId: subscriptions.providerSubscriptionId }).from(subscriptions).innerJoin(tenants, eq(subscriptions.tenantId, tenants.id)).innerJoin(plans, eq(subscriptions.planId, plans.id)).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
     if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Assinatura não encontrada." });
     return record;
+  }),
+
+  addonCatalog: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    await requireTenantAdmin(ctx.user.id, input.tenantId); return Object.entries(capacityAddonCatalog).map(([type, item]) => ({ type: type as CapacityAddonType, ...item }));
+  }),
+
+  addons: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    await requireTenantAdmin(ctx.user.id, input.tenantId); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    return db.select().from(capacityAddons).where(eq(capacityAddons.tenantId, input.tenantId)).orderBy(desc(capacityAddons.createdAt));
   }),
 
   createCheckout: protectedProcedure
@@ -63,6 +73,18 @@ export const billingRouter = router({
       if (!session.url) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Checkout não retornou URL." });
       return { url: session.url };
     }),
+
+  createAddonCheckout: protectedProcedure.input(z.object({ tenantId: z.number().int().positive(), type: z.enum(["members", "agents", "messages"]), quantity: z.number().int().min(1).max(100) })).mutation(async ({ ctx, input }) => {
+    await requireTenantAdmin(ctx.user.id, input.tenantId); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, input.tenantId)).limit(1); const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
+    if (!tenant || !subscription) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa ou assinatura não encontrada." });
+    if (subscription.billingMethod !== "stripe") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este tenant possui cobrança administrada pela plataforma. Solicite o pacote ao administrador." });
+    const item = capacityAddonCatalog[input.type]; const result = await db.insert(capacityAddons).values({ tenantId: input.tenantId, type: input.type, quantity: input.quantity, unitPriceCents: item.monthlyCents, billingMethod: "stripe", status: "pending" }); const addonId = Number(result[0].insertId);
+    let customerId = subscription.providerCustomerId;
+    if (!customerId) { const customer = await stripe.customers.create({ email: tenant.primaryEmail, name: tenant.name, metadata: { tenant_id: String(tenant.id) } }); customerId = customer.id; await db.update(subscriptions).set({ providerCustomerId: customerId }).where(eq(subscriptions.id, subscription.id)); }
+    const session = await stripe.checkout.sessions.create({ mode: "subscription", customer: customerId, allow_promotion_codes: true, line_items: [{ price_data: { currency: "brl", product_data: { name: `Lyra · ${item.label}`, description: item.description }, unit_amount: item.monthlyCents, recurring: { interval: "month" } }, quantity: input.quantity }], metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type }, subscription_data: { metadata: { tenant_id: String(input.tenantId), capacity_addon_id: String(addonId), addon_type: input.type } }, success_url: `${originFromRequest(ctx.req)}/app/billing?addon=success`, cancel_url: `${originFromRequest(ctx.req)}/app/billing?addon=canceled` });
+    if (!session.url) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Checkout não retornou URL." }); await db.update(capacityAddons).set({ providerCheckoutSessionId: session.id }).where(eq(capacityAddons.id, addonId)); return { url: session.url, amountCents: addonAmount(input.type, input.quantity) };
+  }),
 
   createPortal: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     await requireTenantAdmin(ctx.user.id, input.tenantId);

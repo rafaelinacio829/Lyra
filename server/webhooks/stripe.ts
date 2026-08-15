@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
-import { plans, subscriptions, tenants } from "../../drizzle/schema";
+import { capacityAddons, plans, subscriptions, tenants } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { stripe } from "../billing/stripe";
 
@@ -32,6 +32,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const tenantId = Number(session.metadata?.tenant_id);
+      const addonId = Number(session.metadata?.capacity_addon_id);
+      if (Number.isInteger(addonId) && addonId > 0) await db.update(capacityAddons).set({ status: "active", providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, startsAt: new Date() }).where(eq(capacityAddons.id, addonId));
       const planId = await planIdFromCode(session.metadata?.plan_code);
       if (Number.isInteger(tenantId) && planId) {
         await db.update(subscriptions).set({ planId, providerCustomerId: typeof session.customer === "string" ? session.customer : null, providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, status: "active", cancelAtPeriodEnd: false }).where(eq(subscriptions.tenantId, tenantId));
@@ -41,6 +43,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       const tenantId = Number(subscription.metadata.tenant_id);
+      const addonId = Number(subscription.metadata.capacity_addon_id);
+      if (Number.isInteger(addonId) && addonId > 0) await db.update(capacityAddons).set({ status: subscription.status === "past_due" ? "past_due" : subscription.status === "canceled" ? "cancelled" : "active", providerSubscriptionId: subscription.id, endsAt: subscription.status === "canceled" ? new Date() : null }).where(eq(capacityAddons.id, addonId));
       if (Number.isInteger(tenantId)) {
         const planId = await planIdFromCode(subscription.metadata.plan_code);
         await db.update(subscriptions).set({ ...(planId ? { planId } : {}), providerSubscriptionId: subscription.id, providerCustomerId: typeof subscription.customer === "string" ? subscription.customer : null, status: stripeStatus(subscription.status), billingInterval: subscription.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly", cancelAtPeriodEnd: subscription.cancel_at_period_end, currentPeriodEndsAt: subscription.items.data[0]?.current_period_end ? new Date(subscription.items.data[0].current_period_end * 1000) : null }).where(eq(subscriptions.tenantId, tenantId));

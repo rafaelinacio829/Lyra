@@ -65,5 +65,10 @@
 - [x] Adicionar teste de regressão para renderização estável de `/app/billing` durante a transição de tenant e consultas.
 - [x] Criar teste runtime de `/app/billing` que simule transição de tenant e queries, assegurando estabilidade de hooks em re-renderizações.
 - [ ] Validar a rota `/app/billing` na versão publicada após entregar a correção de hooks.
-- [ ] Substituir o login Manus por autenticação própria no banco, com cadastro, senha segura, sessão, logout e recuperação de acesso do Lyra.
+- [x] Substituir o login Manus por autenticação própria no banco, com cadastro, senha segura, sessão, logout e fluxo de primeiro acesso do Lyra.
+- [ ] Implementar recuperação e redefinição de senha por e-mail após a verificação do domínio remetente e a ativação do provedor transacional.
+- [ ] Adicionar testes de recuperação e redefinição de senha junto ao fluxo de e-mail transacional.
 - [ ] Validar em produção a ativação da primeira senha local e o login com redirecionamento ao tenant.
+- [x] Permitir que o super-admin altere plano, método de cobrança e estado de assinatura de qualquer cliente.
+- [x] Permitir que o tenant adquira capacidade adicional de usuários, agentes e mensagens com aplicação técnica dos novos limites.
+- [ ] Enviar a versão comercial concluída para o repositório GitHub conectado do usuário.

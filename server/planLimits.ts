@@ -1,6 +1,6 @@
 import { and, count, eq, gte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { agentProfiles, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships } from "../drizzle/schema";
+import { agentProfiles, capacityAddons, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type TenantQuota = "members" | "agents" | "integrations" | "conversations" | "messages" | "storage";
@@ -21,7 +21,8 @@ async function tenantPlan(tenantId: number) {
     .limit(1);
   if (!subscription) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O tenant não possui plano ativo." });
   if (!["trialing", "active", "past_due"].includes(subscription.status)) throw new TRPCError({ code: "FORBIDDEN", message: "A assinatura deste tenant não permite novas operações." });
-  return subscription;
+  const [addons] = await db.select({ members: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'members' then ${capacityAddons.quantity} else 0 end), 0)`, agents: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'agents' then ${capacityAddons.quantity} else 0 end), 0)`, messages: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'messages' then ${capacityAddons.quantity} * 10000 else 0 end), 0)` }).from(capacityAddons).where(and(eq(capacityAddons.tenantId, tenantId), eq(capacityAddons.status, "active")));
+  return { ...subscription, addonMembers: Number(addons?.members ?? 0), addonAgents: Number(addons?.agents ?? 0), addonMessages: Number(addons?.messages ?? 0) };
 }
 
 async function currentUsage(tenantId: number, quota: TenantQuota) {
@@ -53,7 +54,7 @@ async function currentUsage(tenantId: number, quota: TenantQuota) {
 
 export async function assertTenantQuota(tenantId: number, quota: TenantQuota, increment = 1) {
   const plan = await tenantPlan(tenantId);
-  const limits = { members: plan.includedMembers, agents: plan.includedAgents, integrations: plan.includedIntegrations, conversations: plan.includedConversations, messages: plan.includedMessages, storage: plan.includedStorageMb * 1024 * 1024 };
+  const limits = { members: plan.includedMembers + plan.addonMembers, agents: plan.includedAgents + plan.addonAgents, integrations: plan.includedIntegrations, conversations: plan.includedConversations, messages: plan.includedMessages + plan.addonMessages, storage: plan.includedStorageMb * 1024 * 1024 };
   const current = await currentUsage(tenantId, quota);
   if (current + increment > limits[quota]) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: `O limite de ${quota} do plano ${plan.planName} foi atingido. Escolha um plano com mais capacidade para continuar.` });
