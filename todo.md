@@ -107,3 +107,4 @@
 - [ ] Implementar automações de atendimento configuráveis por tenant com regras de horário, SLA, roteamento e escalonamento humano.
 - [ ] Preparar conformidade mobile para publicação futura, incluindo domínio próprio, notificações, conta de revisão e requisitos das lojas.
 - [x] Implementar alteração de senha, listagem e revogação de sessões, trilha de auditoria e solicitação autenticada de exclusão de conta.
+- [x] Exibir saúde operacional por tenant, com estado de conexões, canais verificados, falhas e sinais acionáveis no dashboard.

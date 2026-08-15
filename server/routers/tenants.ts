@@ -5,6 +5,7 @@ import { agentProfiles, conversations, integrationConfigs, messages, plans, priv
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
+import { summarizeIntegrationHealth } from "../operationalHealth";
 
 const defaultPlans = [
   {
@@ -210,6 +211,7 @@ export const tenantRouter = router({
       const [messageCount] = await db.select({ value: count() }).from(messages).where(and(eq(messages.tenantId, input.tenantId), gte(messages.createdAt, monthStart)));
       const [agentCount] = await db.select({ value: count() }).from(agentProfiles).where(and(eq(agentProfiles.tenantId, input.tenantId), eq(agentProfiles.isActive, true)));
       const [integrationCount] = await db.select({ value: count() }).from(integrationConfigs).where(eq(integrationConfigs.tenantId, input.tenantId));
+      const integrationRows = await db.select({ provider: integrationConfigs.provider, name: integrationConfigs.name, status: integrationConfigs.status, lastVerifiedAt: integrationConfigs.lastVerifiedAt, lastError: integrationConfigs.lastError }).from(integrationConfigs).where(eq(integrationConfigs.tenantId, input.tenantId));
       const [storageCount] = await db.select({ value: sql<number>`coalesce(sum(${privateFiles.sizeBytes}), 0)` }).from(privateFiles).where(eq(privateFiles.tenantId, input.tenantId));
       const [unassignedHuman] = await db.select({ value: count() }).from(conversations).where(and(eq(conversations.tenantId, input.tenantId), eq(conversations.queue, "human"), sql`${conversations.assignedMembershipId} is null`));
       const slaThreshold = new Date(Date.now() - 20 * 60 * 1000);
@@ -224,9 +226,11 @@ export const tenantRouter = router({
         storageBytes: Number(storageCount?.value ?? 0),
       };
       const alerts: Array<{ id: string; tone: "warning" | "critical" | "info"; title: string; detail: string }> = [];
+      const operationalHealth = summarizeIntegrationHealth(integrationRows);
       if ((unassignedHuman?.value ?? 0) > 0) alerts.push({ id: "unassigned", tone: "warning", title: "Conversas sem atendente", detail: `${unassignedHuman?.value} conversa(s) aguardam responsável.` });
       if ((firstResponseRisk?.value ?? 0) > 0) alerts.push({ id: "sla", tone: "critical", title: "SLA próximo do limite", detail: `${firstResponseRisk?.value} conversa(s) humanas estão sem primeira resposta há mais de 20 minutos.` });
       if (subscription?.status === "trialing" && subscription.currentPeriodEndsAt && subscription.currentPeriodEndsAt.getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000) alerts.push({ id: "trial", tone: "info", title: "Trial próximo do fim", detail: `O período de teste termina em ${subscription.currentPeriodEndsAt.toLocaleDateString("pt-BR")}.` });
+      if (operationalHealth.errors > 0) alerts.push({ id: "integration-health", tone: "critical", title: "Integração com falha", detail: `${operationalHealth.errors} conexão(ões) precisam de revisão nas integrações.` });
       const usageChecks = [["conversas", actualUsage.conversations, subscription?.includedConversations], ["mensagens", actualUsage.messages, subscription?.includedMessages], ["armazenamento", actualUsage.storageBytes, (subscription?.includedStorageMb ?? 0) * 1024 * 1024]] as const;
       for (const [label, used, included] of usageChecks) if (included > 0 && used / included >= 0.8) alerts.push({ id: `quota-${label}`, tone: "warning", title: `Uso de ${label} elevado`, detail: `${Math.round((used / included) * 100)}% da franquia do plano já foi utilizada.` });
 
@@ -245,6 +249,7 @@ export const tenantRouter = router({
         activeMembers: memberCount?.value ?? 0,
         queueCounts,
         alerts,
+        operationalHealth,
       };
     }),
 });
