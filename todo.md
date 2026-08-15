@@ -61,3 +61,7 @@
 - [ ] Corrigir o retorno pós-login da autenticação Manus para encaminhar ao onboarding ou painel do Lyra, sem voltar à landing page.
 - [x] Promover a identidade cadastrada de rafaelinaciosilva15@gmail.com ao papel de super-admin da plataforma (identidade já estava com papel admin).
 - [x] Ajustar o botão Entrar e o retorno pós-login para levar o cliente autenticado diretamente ao tenant associado.
+- [x] Corrigir o erro em produção da rota de cobrança `/app/billing` e adicionar cobertura de regressão.
+- [x] Adicionar teste de regressão para renderização estável de `/app/billing` durante a transição de tenant e consultas.
+- [x] Criar teste runtime de `/app/billing` que simule transição de tenant e queries, assegurando estabilidade de hooks em re-renderizações.
+- [ ] Validar a rota `/app/billing` na versão publicada após entregar a correção de hooks.

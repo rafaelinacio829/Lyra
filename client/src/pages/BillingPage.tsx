@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Check, CreditCard, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -34,15 +35,15 @@ export default function BillingPage() {
     onSuccess: result => window.open(result.url, "_blank", "noopener,noreferrer"),
     onError: error => toast.error(error.message),
   });
+  const changePlan = trpc.billing.changePlan.useMutation({ onSuccess: () => { toast.success("Plano atualizado. A Stripe sincronizará o ciclo de cobrança."); overview.refetch(); }, onError: error => toast.error(error.message) });
+  const invoices = trpc.billing.invoices.useQuery({ tenantId: tenantId ?? 0 }, { enabled: Boolean(tenantId) });
 
   if (tenants.isLoading) return <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#5d8b75]" /></div>;
   if (!tenants.data?.length) return <div className="grid min-h-[55vh] place-items-center p-5"><div className="max-w-md rounded-3xl border border-[#dce7df] bg-white p-8 text-center shadow-sm"><CreditCard className="mx-auto h-7 w-7 text-[#628d74]" /><h1 className="mt-4 font-display text-3xl text-[#29434e]">Crie seu ambiente antes de escolher um plano.</h1><p className="mt-3 text-sm leading-6 text-[#74848b]">A assinatura fica vinculada a uma empresa. Crie o primeiro tenant para iniciar o trial e configurar a cobrança.</p><Button onClick={() => setLocation("/onboarding")} className="mt-6 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">Criar empresa</Button></div></div>;
   if (!tenantId || overview.isLoading) return <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#5d8b75]" /></div>;
-  if (!overview.data) return null;
+  if (overview.isError || !overview.data) return <div className="grid min-h-[55vh] place-items-center p-5"><div className="max-w-md rounded-3xl border border-[#f0ddd6] bg-[#fffaf8] p-8 text-center shadow-sm"><CreditCard className="mx-auto h-7 w-7 text-[#b27056]" /><h1 className="mt-4 font-display text-3xl text-[#5e4037]">Não foi possível carregar a cobrança.</h1><p className="mt-3 text-sm leading-6 text-[#86695f]">Nenhuma cobrança foi alterada. Verifique sua conexão e tente novamente.</p><Button onClick={() => overview.refetch()} className="mt-6 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">Tentar novamente</Button></div></div>;
 
   const current = overview.data;
-  const changePlan = trpc.billing.changePlan.useMutation({ onSuccess: () => { toast.success("Plano atualizado. A Stripe sincronizará o ciclo de cobrança."); overview.refetch(); }, onError: error => toast.error(error.message) });
-  const invoices = trpc.billing.invoices.useQuery({ tenantId });
   const choosePlan = (planCode: "starter" | "growth" | "scale") => current.providerSubscriptionId ? changePlan.mutate({ tenantId, planCode, interval }) : checkout.mutate({ tenantId, planCode, interval });
   return <div className="mx-auto max-w-6xl space-y-6 p-2 sm:p-5">
     <section className="flex flex-col justify-between gap-4 rounded-[1.7rem] border border-[#dce7df] bg-[#1d3844] p-7 text-white sm:flex-row sm:items-end">
