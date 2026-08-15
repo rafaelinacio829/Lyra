@@ -1,24 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import { agentProfiles, contacts, conversations, messages } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { decryptTenantSecret } from "../tenantSecrets";
 import { sendZapiText } from "./zapi";
 import { assertTenantQuota } from "../planLimits";
-
-function textFromDify(value: unknown): string | null {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  for (const key of ["answer", "text", "result", "output"]) {
-    const found = textFromDify(record[key]);
-    if (found) return found;
-  }
-  for (const item of Object.values(record)) {
-    const found = textFromDify(item);
-    if (found) return found;
-  }
-  return null;
-}
+import { invokeConfiguredAiAgent } from "./aiProvider";
 
 export async function runDifyForInboundMessage({ tenantId, conversationId, contactId, contactPhone, body }: { tenantId: number; conversationId: number; contactId: number; contactPhone: string; body: string }) {
   const db = await getDb();
@@ -40,22 +25,20 @@ export async function runDifyForInboundMessage({ tenantId, conversationId, conta
   }
 
   const [conversation] = await db.select({ externalConversationId: conversations.externalConversationId }).from(conversations).where(and(eq(conversations.id, conversationId), eq(conversations.tenantId, tenantId))).limit(1);
-  const endpoint = agent.mode === "workflow" ? "/workflows/run" : agent.mode === "completion" ? "/completion-messages" : "/chat-messages";
-  const payload = agent.mode === "workflow"
-    ? { inputs: { message: body, contact_phone: contactPhone, conversation_id: String(conversationId) }, response_mode: "blocking", user: `tenant-${tenantId}-contact-${contactId}` }
-    : { inputs: {}, query: body, response_mode: "blocking", user: `tenant-${tenantId}-contact-${contactId}`, ...(conversation?.externalConversationId ? { conversation_id: conversation.externalConversationId } : {}) };
-  const response = await fetch(`${agent.apiBaseUrl.replace(/\/+$/, "")}${endpoint}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${decryptTenantSecret(agent.credentialCiphertext)}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error(`Dify respondeu ${response.status}`);
-  const result = await response.json() as Record<string, unknown>;
-  const answer = textFromDify(result);
+  let result: Awaited<ReturnType<typeof invokeConfiguredAiAgent>>;
+  try {
+    result = await invokeConfiguredAiAgent(agent, { tenantId, conversationId, contactId, contactPhone, body, externalConversationId: conversation?.externalConversationId });
+  } catch (primaryError) {
+    if (!agent.fallbackAgentId) throw primaryError;
+    const [fallback] = await db.select().from(agentProfiles).where(and(eq(agentProfiles.id, agent.fallbackAgentId), eq(agentProfiles.tenantId, tenantId), eq(agentProfiles.isActive, true), eq(agentProfiles.provider, "dify"))).limit(1);
+    if (!fallback) throw primaryError;
+    result = await invokeConfiguredAiAgent(fallback, { tenantId, conversationId, contactId, contactPhone, body, externalConversationId: conversation?.externalConversationId });
+  }
+  const answer = result.text;
   if (!answer) return { skipped: "empty_response" as const };
   const providerMessageId = await sendZapiText(tenantId, contactPhone, answer);
   await assertTenantQuota(tenantId, "messages");
   await db.insert(messages).values({ tenantId, conversationId, direction: "outbound", channel: "whatsapp", providerMessageId, body: answer });
-  await db.update(conversations).set({ latestMessagePreview: answer, unreadCount: 0, externalConversationId: typeof result.conversation_id === "string" ? result.conversation_id : conversation?.externalConversationId ?? null, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+  await db.update(conversations).set({ latestMessagePreview: answer, unreadCount: 0, externalConversationId: result.externalConversationId, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   return { replied: true as const };
 }

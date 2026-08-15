@@ -24,4 +24,10 @@ describe("conversations.transfer", () => {
     expect(db.__updates[0]).toMatchObject({ queue: "ai", resolvedAt: null });
     expect(db.__updates[0].reopenedAt).toBeInstanceOf(Date);
   });
+
+  it("rejects a transfer to another tenant before reading the conversation", async () => {
+    requireTenantAccess.mockRejectedValueOnce(new Error("Sem acesso ao tenant solicitado."));
+    const caller = conversationRouter.createCaller({ user: { id: 2, openId: "other-tenant", name: "Other", email: null, loginMethod: "manus", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: {} as never, res: {} as never });
+    await expect(caller.transfer({ tenantId: 999, conversationId: 55, queue: "human" })).rejects.toThrow("Sem acesso ao tenant solicitado.");
+  });
 });

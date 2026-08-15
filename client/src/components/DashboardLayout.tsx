@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Bot, ChartNoAxesCombined, CreditCard, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, Users } from "lucide-react";
+import { Bot, ChartNoAxesCombined, ContactRound, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, ShieldCheck, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,6 +31,8 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Visão geral", path: "/app" },
   { icon: MessageSquareText, label: "Conversas", path: "/app/conversations" },
+  { icon: ContactRound, label: "Contatos", path: "/app/contacts" },
+  { icon: FileText, label: "ERP e documentos", path: "/app/erp" },
   { icon: Bot, label: "Agentes", path: "/app/agents" },
   { icon: Users, label: "Equipe", path: "/app/team" },
   { icon: ChartNoAxesCombined, label: "Métricas", path: "/app/metrics" },
@@ -52,6 +55,8 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  const [location, setLocation] = useLocation();
+  const memberships = trpc.tenant.mine.useQuery(undefined, { enabled: Boolean(user) });
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -83,6 +88,12 @@ export default function DashboardLayout({
         </div>
       </div>
     );
+  }
+
+  if (memberships.isLoading) return <DashboardLayoutSkeleton />;
+
+  if (!memberships.data?.length && location !== "/app/platform") {
+    return <div className="grid min-h-screen place-items-center bg-[#f7f8f5] p-6"><section className="max-w-lg rounded-[2rem] border border-[#dce8df] bg-white p-8 text-center shadow-sm"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Primeiro ambiente</p><h1 className="mt-3 font-display text-4xl tracking-[-.04em] text-[#213c47]">Crie a empresa que vai operar no Lyra.</h1><p className="mt-4 text-sm leading-6 text-[#687980]">Ainda não há uma empresa vinculada ao seu acesso. O onboarding cria o ambiente, o primeiro administrador e a configuração inicial de forma segura.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Button onClick={() => setLocation("/onboarding")} className="rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">Criar meu ambiente</Button>{user.role === "admin" && <Button variant="outline" onClick={() => setLocation("/app/platform")} className="rounded-full">Abrir plataforma</Button>}</div></section></div>;
   }
 
   return (
@@ -201,6 +212,7 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
+              {user?.role === "admin" && <SidebarMenuItem><SidebarMenuButton isActive={location === "/app/platform"} onClick={() => setLocation("/app/platform")} tooltip="Plataforma" className="h-10 transition-all font-normal"><ShieldCheck className={`h-4 w-4 ${location === "/app/platform" ? "text-[#c8f07d]" : "text-[#b5c4c8]"}`} /><span>Plataforma</span></SidebarMenuButton></SidebarMenuItem>}
             </SidebarMenu>
           </SidebarContent>
 

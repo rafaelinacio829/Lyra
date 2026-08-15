@@ -2,37 +2,38 @@
 
 - [x] Documentar a arquitetura comercial e técnica do SaaS, incluindo estratégia multiempresa, isolamento de dados, papéis, planos e decisões de segurança.
 - [x] Modelar no banco os tenants, membros, papéis de plataforma e tenant, equipes, planos, assinaturas, quotas e uso mensal.
-- [ ] Criar guardas de autorização no servidor para super-admin, admin do tenant e atendente, com filtragem obrigatória por tenant em toda consulta e mutação.
+- [x] Criar guardas de autorização no servidor para super-admin, admin do tenant e atendente, com filtragem obrigatória por tenant em toda consulta e mutação.
 - [x] Implementar onboarding para criar tenant, primeiro administrador e configuração inicial em uma única transação lógica.
 - [x] Criar landing page sofisticada com proposta de valor, recursos, preços, CTA de cadastro, perguntas frequentes e links de autenticação.
 - [x] Criar página de preços com comparação clara de planos e limites técnicos aplicáveis.
 - [x] Criar dashboard operacional elegante com visão de KPIs, fila de atendimento, utilização do plano e alertas relevantes.
 - [x] Implementar entidades e APIs de conversas, mensagens, notas internas, etiquetas, reações, status e transferência entre IA e humano.
-- [ ] Implementar gestão de contatos, times, membros do tenant, presença e carga de trabalho por atendente.
+- [x] Implementar gestão de contatos, times, membros do tenant, presença e carga de trabalho por atendente.
 - [x] Implementar métricas por tenant: resolução, primeira resposta, reabertura, produtividade e volume por fila, com exportação de histórico em CSV.
 - [x] Implementar configuração isolada por tenant para Z-API, Dify e NetSuite sem expor segredos ao cliente.
 - [x] Implementar endpoint seguro de webhook com autenticação, idempotência, validação de segredo e associação obrigatória ao tenant.
 - [x] Implementar armazenamento privado de mídia e documentos em S3 com metadados por tenant, controle de acesso e URLs assinadas de curta duração.
 - [x] Implementar estrutura de resposta automática por IA e transferência para humano baseada em configurações do tenant.
-- [ ] Implementar catálogo de agentes por tenant, com criação, edição, teste, ativação, fallback e regras de transferência configuráveis dentro do SaaS.
-- [ ] Criar adaptador de provedores de IA que integre Dify por tenant sem acoplamento da interface, permitindo evoluir para agentes nativos ou outros provedores futuramente.
-- [ ] Proteger credenciais e identificadores de agentes Dify por tenant, com armazenamento server-side, mascaramento na interface, auditoria de alterações e isolamento obrigatório.
-- [ ] Implementar consulta ERP como integração configurável por tenant, com geração e entrega autorizada de documentos financeiros.
+- [x] Implementar catálogo de agentes por tenant, com criação, edição, teste, ativação, fallback e regras de transferência configuráveis dentro do SaaS.
+- [x] Criar adaptador de provedores de IA que integre Dify por tenant sem acoplamento da interface, permitindo evoluir para agentes nativos ou outros provedores futuramente.
+- [x] Proteger credenciais e identificadores de agentes Dify por tenant, com armazenamento server-side, mascaramento na interface, auditoria de alterações e isolamento obrigatório.
+- [x] Implementar consulta ERP como integração configurável por tenant, com geração e entrega autorizada de documentos financeiros.
 - [x] Adicionar cobrança recorrente com Stripe, planos, assinaturas, trial, upgrades, downgrades, faturas e webhooks de pagamento.
 - [x] Aplicar limites técnicos de cada plano para conversas, mensagens, agentes e armazenamento, com validação server-side.
 - [x] Implementar página de billing para administrador do tenant com seleção de plano e portal de cobrança.
 - [ ] Implementar alertas por e-mail para conversas sem atendente, risco de SLA, expiração de trial e resumo semanal.
+- [ ] Ativar o provedor de e-mail e os alertas transacionais após o domínio remetente ser verificado e a chave de API ser fornecida.
 - [ ] Criar tarefas recorrentes idempotentes para trial, relatórios e alertas somente após o produto estar publicado.
 - [ ] Criar testes Vitest para isolamento de tenant, controle de papel, limites de plano, cobrança e fluxos críticos de conversas.
 - [x] Executar verificação de tipos, testes, revisão de logs e captura visual desktop/mobile antes da entrega.
 - [x] Preparar documentação de configuração das integrações, operação segura e passos de publicação.
-- [ ] Implementar guarda de super-admin no servidor e aplicá-la às futuras operações de plataforma.
+- [x] Implementar guarda de super-admin no servidor e aplicá-la às operações de plataforma.
 - [ ] Criar procedures e revisão de rotas para garantir filtragem obrigatória por tenant em toda consulta e mutação do domínio.
 - [x] Criar rota dedicada de preços com comparação completa de planos e limites técnicos, conectada à landing page.
 - [x] Implementar no dashboard uma seção de alertas reais por tenant para conversas sem atendente, risco de SLA, trial próximo do fim e limite de plano próximo do esgotamento.
 - [x] Adicionar consulta de backend que calcule e retorne alertas operacionais por tenant ao dashboard.
 - [x] Implementar upgrade e downgrade de assinatura Stripe existente sem criar assinaturas duplicadas, com sincronização por webhook.
-- [ ] Adicionar consulta de faturas do Stripe e testes Vitest para checkout, portal e webhook de cobrança.
+- [x] Adicionar consulta de faturas do Stripe e testes Vitest para checkout, portal e webhook de cobrança.
 - [x] Aplicar limites técnicos em todos os fluxos de criação ou ativação: ativação de agentes, webhook Z-API, resposta Dify, notas internas e demais entradas de mensagens e conversas.
 - [x] Corrigir a reabertura em todos os fluxos de retorno de conversa, incluindo webhook Z-API, evitando nova conversa quando a intenção for reabrir uma resolvida.
 - [x] Adicionar ao módulo de relatórios o volume por fila no período, não apenas a contagem instantânea do dashboard.
@@ -40,3 +41,11 @@
 - [x] Adicionar testes Vitest ao módulo de relatórios, validando taxa de reabertura e volume por fila a partir de agregados de conversas do tenant.
 - [ ] Adicionar testes de ciclo de vida integrados com banco para transferência e reabertura, confirmando a persistência de `reopenedAt` usada pelos fluxos de transferência e webhook Z-API.
 - [ ] Adicionar cenário ponta a ponta com banco para `reports`, `conversations.transfer` e webhook Z-API, validando persistência de `reopenedAt` e cálculo final do relatório.
+- [ ] Criar procedures explícitas para super-admin, administrador do tenant e atendente, com testes que neguem acesso cruzado entre tenants.
+- [x] Completar edição e remoção de contatos, membros e times, além de validar na UI os fluxos de presença e carga de trabalho por atendente.
+- [x] Preparar regras de alerta e adaptador de entrega de e-mail que permanece desativado sem domínio remetente e credenciais válidas.
+- [ ] Auditar router por router e adicionar testes Vitest para comprovar a filtragem obrigatória por tenant em consultas e mutações do domínio.
+- [ ] Auditar todos os routers com testes Vitest de acesso cruzado entre tenants para comprovar filtragem obrigatória por tenant.
+- [ ] Adicionar testes Vitest para checkout, portal, consulta de faturas e processamento real do webhook Stripe.
+- [ ] Adicionar UI para editar times, remover membros de forma explícita e validar presença e carga de trabalho com testes.
+- [x] Corrigir o estado sem tenant nos painéis autenticados para evitar carregamento contínuo e direcionar o usuário ao onboarding.

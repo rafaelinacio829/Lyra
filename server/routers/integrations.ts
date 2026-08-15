@@ -8,6 +8,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { decryptTenantSecret, encryptTenantSecret, fingerprintTenantSecret } from "../tenantSecrets";
 import { requireTenantAccess, requireTenantAdmin } from "../tenantAccess";
 import { assertTenantQuota } from "../planLimits";
+import { recordTenantAudit } from "../audit";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
 
@@ -55,6 +56,7 @@ export const integrationRouter = router({
       });
       const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi"), eq(integrationConfigs.name, input.name.trim()))).limit(1);
       if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Configuração Z-API não foi criada." });
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.zapi_configured", entityType: "integration", entityId: config.id, metadata: { name: input.name.trim(), instanceId: input.instanceId.trim() } });
       return { id: config.id, webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/zapi/${config.id}/${webhookKey}` };
     }),
 
@@ -96,6 +98,7 @@ export const integrationRouter = router({
       if (!existing) await assertTenantQuota(input.tenantId, "integrations");
       const secret = { clientId: input.clientId, clientSecret: input.clientSecret, refreshToken: input.refreshToken };
       await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "netsuite", name: input.name.trim(), status: "draft", publicConfig: { accountId: input.accountId.trim(), restBaseUrl: input.restBaseUrl.replace(/\/+$/, "") }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.clientId) }).onDuplicateKeyUpdate({ set: { status: "draft", publicConfig: { accountId: input.accountId.trim(), restBaseUrl: input.restBaseUrl.replace(/\/+$/, "") }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.clientId), lastError: null } });
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.netsuite_configured", entityType: "integration", metadata: { name: input.name.trim(), accountId: input.accountId.trim() } });
       return { success: true };
     }),
 

@@ -8,6 +8,9 @@ import { fileRouter } from "./routers/files";
 import { integrationRouter } from "./routers/integrations";
 import { billingRouter } from "./routers/billing";
 import { reportRouter } from "./routers/reports";
+import { contactRouter } from "./routers/contacts";
+import { platformRouter } from "./routers/platform";
+import { erpRouter } from "./routers/erp";
 import { teamRouter } from "./routers/team";
 import { tenantRouter } from "./routers/tenants";
 
@@ -32,6 +35,9 @@ export const appRouter = router({
   files: fileRouter,
   billing: billingRouter,
   reports: reportRouter,
+  contacts: contactRouter,
+  platform: platformRouter,
+  erp: erpRouter,
 });
 
 export type AppRouter = typeof appRouter;

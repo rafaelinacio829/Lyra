@@ -32,4 +32,8 @@
 3. Depois que a URL de produção estiver ativa, habilite os callbacks de alertas recorrentes descritos em `operations-runbook.md` usando agendamentos gerenciados.
 4. Faça o piloto com um tenant interno, uma instância de WhatsApp de teste, um agente Dify de homologação e o cartão Stripe `4242 4242 4242 4242` no sandbox.
 
+## Ativação futura do e-mail transacional
+
+O código já prepara alertas de conversas sem responsável, risco de primeira resposta e expiração de trial, mas **não envia nenhuma mensagem** enquanto `RESEND_API_KEY` e `RESEND_FROM` não estiverem configuradas. Quando o domínio remetente estiver validado no provedor, informe os dois valores de forma segura nas configurações do projeto. Somente depois da publicação, crie os callbacks periódicos autenticados para avaliar alertas e o resumo semanal; cada execução deve ser idempotente e registrar sua própria evidência de entrega para não repetir notificações em caso de nova tentativa.
+
 > O SaaS aplica isolamento e limites na camada do servidor, mas integrações externas só ficam operacionais após cada tenant inserir e validar suas próprias credenciais.

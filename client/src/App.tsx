@@ -14,6 +14,9 @@ import TeamPage from "./pages/TeamPage";
 import IntegrationsPage from "./pages/IntegrationsPage";
 import BillingPage from "./pages/BillingPage";
 import MetricsPage from "./pages/MetricsPage";
+import ContactsPage from "./pages/ContactsPage";
+import PlatformPage from "./pages/PlatformPage";
+import ErpPage from "./pages/ErpPage";
 import WorkspaceHome from "./pages/WorkspaceHome";
 
 function Router() {
@@ -26,6 +29,9 @@ function Router() {
       <Route path={"/app"}><DashboardLayout><WorkspaceHome /></DashboardLayout></Route>
       <Route path={"/app/agents"}><DashboardLayout><AgentsPage /></DashboardLayout></Route>
       <Route path={"/app/conversations"}><DashboardLayout><ConversationsPage /></DashboardLayout></Route>
+      <Route path={"/app/contacts"}><DashboardLayout><ContactsPage /></DashboardLayout></Route>
+      <Route path={"/app/platform"}><DashboardLayout><PlatformPage /></DashboardLayout></Route>
+      <Route path={"/app/erp"}><DashboardLayout><ErpPage /></DashboardLayout></Route>
       <Route path={"/app/team"}><DashboardLayout><TeamPage /></DashboardLayout></Route>
       <Route path={"/app/metrics"}><DashboardLayout><MetricsPage /></DashboardLayout></Route>
       <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>

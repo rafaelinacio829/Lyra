@@ -7,6 +7,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAdmin, requireTenantAccess } from "../tenantAccess";
 import { decryptTenantSecret, encryptTenantSecret, fingerprintTenantSecret } from "../tenantSecrets";
 import { assertTenantQuota } from "../planLimits";
+import { recordTenantAudit } from "../audit";
 
 const agentInput = z.object({
   tenantId: z.number().int().positive(),
@@ -38,6 +39,7 @@ export const agentRouter = router({
           externalAppId: agentProfiles.externalAppId,
           instructions: agentProfiles.instructions,
           handoffKeywords: agentProfiles.handoffKeywords,
+          fallbackAgentId: agentProfiles.fallbackAgentId,
           isActive: agentProfiles.isActive,
           isDefault: agentProfiles.isDefault,
           credentialConfigured: agentProfiles.credentialFingerprint,
@@ -80,6 +82,17 @@ export const agentRouter = router({
     return { id: created.id };
   }),
 
+  updateProfile: protectedProcedure.input(agentInput.extend({ agentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    await requireTenantAdmin(ctx.user.id, input.tenantId);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
+    if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado." });
+    await db.update(agentProfiles).set({ name: input.name.trim(), purpose: input.purpose.trim(), mode: input.mode, externalAppId: input.externalAppId?.trim() || null, instructions: input.instructions?.trim() || null, handoffKeywords: input.handoffKeywords }).where(eq(agentProfiles.id, agent.id));
+    await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.profile_updated", entityType: "agent", entityId: agent.id, metadata: { mode: input.mode } });
+    return { success: true };
+  }),
+
   setActive: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive(), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
@@ -106,6 +119,24 @@ export const agentRouter = router({
       return { success: true };
     }),
 
+  setFallback: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive(), fallbackAgentId: z.number().int().positive().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
+      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado." });
+      if (input.fallbackAgentId) {
+        if (input.fallbackAgentId === input.agentId) throw new TRPCError({ code: "BAD_REQUEST", message: "Um agente não pode ser fallback de si mesmo." });
+        const [fallback] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.fallbackAgentId), eq(agentProfiles.tenantId, input.tenantId), eq(agentProfiles.isActive, true))).limit(1);
+        if (!fallback) throw new TRPCError({ code: "NOT_FOUND", message: "O fallback precisa ser um agente ativo desta empresa." });
+      }
+      await db.update(agentProfiles).set({ fallbackAgentId: input.fallbackAgentId }).where(eq(agentProfiles.id, input.agentId));
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.fallback_updated", entityType: "agent", entityId: input.agentId, metadata: { fallbackAgentId: input.fallbackAgentId } });
+      return { success: true };
+    }),
+
   configureDify: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive(), apiBaseUrl: z.string().url().max(500), apiKey: z.string().min(12).max(1000) }))
     .mutation(async ({ ctx, input }) => {
@@ -115,6 +146,7 @@ export const agentRouter = router({
       const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
       if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado nesta empresa." });
       await db.update(agentProfiles).set({ apiBaseUrl: input.apiBaseUrl.replace(/\/+$/, ""), credentialCiphertext: encryptTenantSecret(input.apiKey), credentialFingerprint: fingerprintTenantSecret(input.apiKey), lastVerifiedAt: null, isActive: false }).where(eq(agentProfiles.id, agent.id));
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.dify_configured", entityType: "agent", entityId: agent.id, metadata: { apiBaseUrl: input.apiBaseUrl.replace(/\/+$/, "") } });
       return { success: true };
     }),
 
@@ -130,6 +162,7 @@ export const agentRouter = router({
         const response = await fetch(`${agent.apiBaseUrl}/info`, { headers: { Authorization: `Bearer ${decryptTenantSecret(agent.credentialCiphertext)}` } });
         if (!response.ok) throw new Error(`Dify respondeu ${response.status}`);
         await db.update(agentProfiles).set({ lastVerifiedAt: new Date() }).where(eq(agentProfiles.id, agent.id));
+        await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.dify_tested", entityType: "agent", entityId: agent.id, metadata: { success: true } });
         return { success: true };
       } catch {
         throw new TRPCError({ code: "BAD_GATEWAY", message: "O Dify não aceitou a configuração. Confirme a URL base e a chave da aplicação." });

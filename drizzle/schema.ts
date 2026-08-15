@@ -192,13 +192,14 @@ export const agentProfiles = mysqlTable(
     instructions: text("instructions"),
     handoffKeywords: json("handoff_keywords"),
     inputSchema: json("input_schema"),
+    fallbackAgentId: int("fallback_agent_id"),
     isActive: boolean("is_active").notNull().default(false),
     isDefault: boolean("is_default").notNull().default(false),
     lastVerifiedAt: timestamp("last_verified_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
-  table => [index("agent_tenant_active_idx").on(table.tenantId, table.isActive)]
+  table => [index("agent_tenant_active_idx").on(table.tenantId, table.isActive), index("agent_fallback_idx").on(table.fallbackAgentId)]
 );
 
 export const integrationConfigs = mysqlTable(

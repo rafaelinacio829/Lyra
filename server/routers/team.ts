@@ -92,6 +92,17 @@ export const teamRouter = router({
       return { success: true };
     }),
 
+  setMemberActive: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), membershipId: z.number().int().positive(), isActive: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const result = await db.update(tenantMemberships).set({ isActive: input.isActive, presence: "offline" }).where(and(eq(tenantMemberships.id, input.membershipId), eq(tenantMemberships.tenantId, input.tenantId)));
+      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Membro não encontrado nesta empresa." });
+      return { success: true };
+    }),
+
   listTeams: protectedProcedure.input(tenantInput).query(async ({ ctx, input }) => {
     await requireTenantAccess(ctx.user.id, input.tenantId);
     const db = await getDb();
@@ -115,6 +126,28 @@ export const teamRouter = router({
       return { id: created.id };
     }),
 
+  updateTeam: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), teamId: z.number().int().positive(), name: z.string().min(2).max(120), description: z.string().max(800).optional().or(z.literal("")) }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const result = await db.update(teams).set({ name: input.name.trim(), description: input.description?.trim() || null }).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId)));
+      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
+      return { success: true };
+    }),
+
+  deleteTeam: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), teamId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const result = await db.delete(teams).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId)));
+      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
+      return { success: true };
+    }),
+
   addMemberToTeam: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), teamId: z.number().int().positive(), membershipId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
@@ -125,6 +158,18 @@ export const teamRouter = router({
       const [member] = await db.select({ id: tenantMemberships.id }).from(tenantMemberships).where(and(eq(tenantMemberships.id, input.membershipId), eq(tenantMemberships.tenantId, input.tenantId))).limit(1);
       if (!team || !member) throw new TRPCError({ code: "NOT_FOUND", message: "Time ou membro não encontrado nesta empresa." });
       await db.insert(teamMembers).values({ teamId: team.id, membershipId: member.id }).onDuplicateKeyUpdate({ set: { membershipId: member.id } });
+      return { success: true };
+    }),
+
+  removeMemberFromTeam: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), teamId: z.number().int().positive(), membershipId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [team] = await db.select({ id: teams.id }).from(teams).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId))).limit(1);
+      if (!team) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
+      await db.delete(teamMembers).where(and(eq(teamMembers.teamId, input.teamId), eq(teamMembers.membershipId, input.membershipId)));
       return { success: true };
     }),
 });
