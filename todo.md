@@ -55,3 +55,6 @@
 - [x] Documentar que Google ADK é consumido pelo Lyra como endpoint publicado compatível e refletir essa regra no catálogo de agentes.
 - [x] Validar endpoint, credencial e identificadores obrigatórios para LangGraph, Flowise, Langflow e n8n no teste de conexão do agente.
 - [x] Adicionar validações e testes específicos para Anthropic, LangGraph, Langflow e n8n antes da entrega dos conectores de IA.
+- [x] Criar uma área de plataforma para super-admin acompanhar clientes, assinaturas, receita recorrente, trials e riscos comerciais do SaaS.
+- [x] Adicionar estados de erro e vazio explícitos à central comercial de plataforma.
+- [x] Cobrir `platform.overview` com testes de retorno comercial e negação de acesso para usuário não super-admin.
