@@ -31,11 +31,27 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("login_method", { length: 64 }),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  passwordUpdatedAt: timestamp("password_updated_at"),
   role: platformRole.notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("last_signed_in").defaultNow().notNull(),
 });
+
+export const authSessions = mysqlTable(
+  "auth_sessions",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => [index("auth_session_user_idx").on(table.userId, table.expiresAt)]
+);
 
 export const plans = mysqlTable("plans", {
   id: int("id").autoincrement().primaryKey(),

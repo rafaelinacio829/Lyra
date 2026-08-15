@@ -58,10 +58,12 @@
 - [x] Criar uma área de plataforma para super-admin acompanhar clientes, assinaturas, receita recorrente, trials e riscos comerciais do SaaS.
 - [x] Adicionar estados de erro e vazio explícitos à central comercial de plataforma.
 - [x] Cobrir `platform.overview` com testes de retorno comercial e negação de acesso para usuário não super-admin.
-- [ ] Corrigir o retorno pós-login da autenticação Manus para encaminhar ao onboarding ou painel do Lyra, sem voltar à landing page.
+- [x] Corrigir o retorno pós-login da autenticação Manus para encaminhar ao onboarding ou painel do Lyra, sem voltar à landing page.
 - [x] Promover a identidade cadastrada de rafaelinaciosilva15@gmail.com ao papel de super-admin da plataforma (identidade já estava com papel admin).
 - [x] Ajustar o botão Entrar e o retorno pós-login para levar o cliente autenticado diretamente ao tenant associado.
 - [x] Corrigir o erro em produção da rota de cobrança `/app/billing` e adicionar cobertura de regressão.
 - [x] Adicionar teste de regressão para renderização estável de `/app/billing` durante a transição de tenant e consultas.
 - [x] Criar teste runtime de `/app/billing` que simule transição de tenant e queries, assegurando estabilidade de hooks em re-renderizações.
 - [ ] Validar a rota `/app/billing` na versão publicada após entregar a correção de hooks.
+- [ ] Substituir o login Manus por autenticação própria no banco, com cadastro, senha segura, sessão, logout e recuperação de acesso do Lyra.
+- [ ] Validar em produção a ativação da primeira senha local e o login com redirecionamento ao tenant.

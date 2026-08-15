@@ -2,7 +2,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Building2, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
@@ -32,7 +31,7 @@ export default function OnboardingTenant() {
   }, [tenants.data, setLocation]);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f8f7f4]"><Loader2 className="h-6 w-6 animate-spin text-[#5e8b76]" /></div>;
-  if (!isAuthenticated) return <div className="grid min-h-screen place-items-center bg-[#f8f7f4] px-5"><div className="max-w-lg rounded-3xl border border-[#dce5df] bg-white p-8 text-center shadow-sm"><ShieldCheck className="mx-auto h-9 w-9 text-[#5b8f74]" /><p className="mt-5 text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Etapa de segurança</p><h1 className="mt-3 font-display text-3xl text-[#1e3742]">Antes de criar sua operação, confirme sua identidade.</h1><p className="mt-3 text-sm leading-6 text-[#697980]">O Lyra usa a autenticação segura da Manus para vincular o primeiro administrador à empresa e manter a operação auditável. Você continuará no Lyra após entrar; não é necessário contratar nem usar outro produto.</p><p className="mt-3 text-xs leading-5 text-[#849198]">Caso ainda não tenha um login, a tela seguinte pode pedir a criação gratuita de uma conta de acesso.</p><Button className="mt-6 rounded-full bg-[#1c3542] text-white" onClick={() => startLogin()}>Continuar para o login seguro <ArrowRight className="ml-2 h-4 w-4" /></Button></div></div>;
+  if (!isAuthenticated) return <div className="grid min-h-screen place-items-center bg-[#f8f7f4] px-5"><div className="max-w-lg rounded-3xl border border-[#dce5df] bg-white p-8 text-center shadow-sm"><ShieldCheck className="mx-auto h-9 w-9 text-[#5b8f74]" /><p className="mt-5 text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Etapa de segurança</p><h1 className="mt-3 font-display text-3xl text-[#1e3742]">Antes de criar sua operação, entre com sua conta Lyra.</h1><p className="mt-3 text-sm leading-6 text-[#697980]">Sua senha e sua sessão são gerenciadas pelo próprio Lyra. Após entrar, o primeiro administrador ficará vinculado à empresa de forma auditável.</p><Button className="mt-6 rounded-full bg-[#1c3542] text-white" onClick={() => setLocation("/login")}>Entrar ou criar conta <ArrowRight className="ml-2 h-4 w-4" /></Button></div></div>;
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
