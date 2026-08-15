@@ -17,6 +17,7 @@ import { platformRouter } from "./routers/platform";
 import { erpRouter } from "./routers/erp";
 import { teamRouter } from "./routers/team";
 import { tenantRouter } from "./routers/tenants";
+import { operatingRulesRouter } from "./routers/operatingRules";
 import { createLocalOpenId, createLocalSession, hashPassword, normalizeEmail, revokeLocalSession, sessionTokenHashFromRequest, verifyPassword } from "./localAuth";
 
 const passwordSchema = z.string().min(12, "Use uma senha com ao menos 12 caracteres.").max(128);
@@ -85,6 +86,7 @@ export const appRouter = router({
     }),
   }),
   tenant: tenantRouter,
+  operatingRules: operatingRulesRouter,
   agents: agentRouter,
   conversations: conversationRouter,
   team: teamRouter,

@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Bot, ChartNoAxesCombined, ContactRound, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, ShieldCheck, Users } from "lucide-react";
+import { Bot, ChartNoAxesCombined, ContactRound, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -37,6 +37,7 @@ const menuItems = [
   { icon: ChartNoAxesCombined, label: "Métricas", path: "/app/metrics" },
   { icon: CreditCard, label: "Plano e cobrança", path: "/app/billing" },
   { icon: Settings2, label: "Integrações", path: "/app/integrations" },
+  { icon: SlidersHorizontal, label: "Regras de operação", path: "/app/operations" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

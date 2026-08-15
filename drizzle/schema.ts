@@ -219,6 +219,24 @@ export const tenantInvites = mysqlTable(
   ]
 );
 
+export const tenantOperatingRules = mysqlTable(
+  "tenant_operating_rules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    isEnabled: boolean("is_enabled").notNull().default(true),
+    timezone: varchar("timezone", { length: 80 }).notNull().default("America/Sao_Paulo"),
+    businessHours: json("business_hours"),
+    firstResponseSlaMinutes: int("first_response_sla_minutes").notNull().default(20),
+    inboundRouting: varchar("inbound_routing", { length: 24 }).notNull().default("ai_first"),
+    handoffOutsideBusinessHours: boolean("handoff_outside_business_hours").notNull().default(false),
+    autoEscalateUnassigned: boolean("auto_escalate_unassigned").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tenant_operating_rules_tenant_unique").on(table.tenantId)]
+);
+
 export const agentProfiles = mysqlTable(
   "agent_profiles",
   {
@@ -307,6 +325,22 @@ export const conversations = mysqlTable(
     index("conversation_tenant_queue_idx").on(table.tenantId, table.queue, table.updatedAt),
     index("conversation_assignee_idx").on(table.tenantId, table.assignedMembershipId),
   ]
+);
+
+export const conversationEscalations = mysqlTable(
+  "conversation_escalations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    conversationId: int("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 80 }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
+    acknowledgedMembershipId: int("acknowledged_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    escalatedAt: timestamp("escalated_at").defaultNow().notNull(),
+    acknowledgedAt: timestamp("acknowledged_at"),
+    resolvedAt: timestamp("resolved_at"),
+  },
+  table => [uniqueIndex("escalation_conversation_unique").on(table.conversationId), index("escalation_tenant_status_idx").on(table.tenantId, table.status, table.escalatedAt)]
 );
 
 export const messages = mysqlTable(

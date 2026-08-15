@@ -1,12 +1,13 @@
 import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { agentProfiles, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships, tenants, usageCounters } from "../../drizzle/schema";
+import { agentProfiles, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships, tenantOperatingRules, tenants, usageCounters } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
 import { summarizeIntegrationHealth } from "../operationalHealth";
 import { buildActivationJourney } from "../activationJourney";
+import { defaultBusinessHours, normalizeBusinessHours } from "../operatingRules";
 
 const defaultPlans = [
   {
@@ -213,9 +214,11 @@ export const tenantRouter = router({
       const [agentCount] = await db.select({ value: count() }).from(agentProfiles).where(and(eq(agentProfiles.tenantId, input.tenantId), eq(agentProfiles.isActive, true)));
       const [integrationCount] = await db.select({ value: count() }).from(integrationConfigs).where(eq(integrationConfigs.tenantId, input.tenantId));
       const integrationRows = await db.select({ provider: integrationConfigs.provider, name: integrationConfigs.name, status: integrationConfigs.status, lastVerifiedAt: integrationConfigs.lastVerifiedAt, lastError: integrationConfigs.lastError }).from(integrationConfigs).where(eq(integrationConfigs.tenantId, input.tenantId));
+      const [operatingRule] = await db.select().from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, input.tenantId)).limit(1);
       const [storageCount] = await db.select({ value: sql<number>`coalesce(sum(${privateFiles.sizeBytes}), 0)` }).from(privateFiles).where(eq(privateFiles.tenantId, input.tenantId));
       const [unassignedHuman] = await db.select({ value: count() }).from(conversations).where(and(eq(conversations.tenantId, input.tenantId), eq(conversations.queue, "human"), sql`${conversations.assignedMembershipId} is null`));
-      const slaThreshold = new Date(Date.now() - 20 * 60 * 1000);
+      const slaMinutes = operatingRule?.isEnabled ? operatingRule.firstResponseSlaMinutes : 20;
+      const slaThreshold = new Date(Date.now() - slaMinutes * 60 * 1000);
       const [firstResponseRisk] = await db.select({ value: count() }).from(conversations).where(and(eq(conversations.tenantId, input.tenantId), eq(conversations.queue, "human"), sql`${conversations.firstResponseAt} is null`, gte(conversations.createdAt, new Date(0)), sql`${conversations.createdAt} <= ${slaThreshold}`));
 
       const actualUsage = {
@@ -229,8 +232,9 @@ export const tenantRouter = router({
       const alerts: Array<{ id: string; tone: "warning" | "critical" | "info"; title: string; detail: string }> = [];
       const operationalHealth = summarizeIntegrationHealth(integrationRows);
       const activation = buildActivationJourney({ channelsReady: operationalHealth.channelsReady, activeAgents: actualUsage.activeAgents, activeMembers: actualUsage.activeMembers, conversations: actualUsage.conversations });
-      if ((unassignedHuman?.value ?? 0) > 0) alerts.push({ id: "unassigned", tone: "warning", title: "Conversas sem atendente", detail: `${unassignedHuman?.value} conversa(s) aguardam responsável.` });
-      if ((firstResponseRisk?.value ?? 0) > 0) alerts.push({ id: "sla", tone: "critical", title: "SLA próximo do limite", detail: `${firstResponseRisk?.value} conversa(s) humanas estão sem primeira resposta há mais de 20 minutos.` });
+      const shouldEscalateUnassigned = operatingRule?.isEnabled ? operatingRule.autoEscalateUnassigned : true;
+      if (shouldEscalateUnassigned && (unassignedHuman?.value ?? 0) > 0) alerts.push({ id: "unassigned", tone: "warning", title: "Conversas sem atendente", detail: `${unassignedHuman?.value} conversa(s) aguardam responsável.` });
+      if ((firstResponseRisk?.value ?? 0) > 0) alerts.push({ id: "sla", tone: "critical", title: "SLA próximo do limite", detail: `${firstResponseRisk?.value} conversa(s) humanas estão sem primeira resposta há mais de ${slaMinutes} minutos.` });
       if (subscription?.status === "trialing" && subscription.currentPeriodEndsAt && subscription.currentPeriodEndsAt.getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000) alerts.push({ id: "trial", tone: "info", title: "Trial próximo do fim", detail: `O período de teste termina em ${subscription.currentPeriodEndsAt.toLocaleDateString("pt-BR")}.` });
       if (operationalHealth.errors > 0) alerts.push({ id: "integration-health", tone: "critical", title: "Integração com falha", detail: `${operationalHealth.errors} conexão(ões) precisam de revisão nas integrações.` });
       const usageChecks = [["conversas", actualUsage.conversations, subscription?.includedConversations], ["mensagens", actualUsage.messages, subscription?.includedMessages], ["armazenamento", actualUsage.storageBytes, (subscription?.includedStorageMb ?? 0) * 1024 * 1024]] as const;
@@ -253,6 +257,7 @@ export const tenantRouter = router({
         alerts,
         operationalHealth,
         activation,
+        operatingRules: operatingRule ? { isEnabled: operatingRule.isEnabled, timezone: operatingRule.timezone, businessHours: normalizeBusinessHours(operatingRule.businessHours), firstResponseSlaMinutes: operatingRule.firstResponseSlaMinutes, inboundRouting: operatingRule.inboundRouting, handoffOutsideBusinessHours: operatingRule.handoffOutsideBusinessHours, autoEscalateUnassigned: operatingRule.autoEscalateUnassigned } : { isEnabled: true, timezone: "America/Sao_Paulo", businessHours: defaultBusinessHours, firstResponseSlaMinutes: 20, inboundRouting: "ai_first", handoffOutsideBusinessHours: false, autoEscalateUnassigned: true },
       };
     }),
 });

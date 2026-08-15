@@ -1,17 +1,43 @@
 import { and, asc, desc, eq, like, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contacts, conversations, messages, tenantMemberships, users } from "../../drizzle/schema";
+import { contacts, conversationEscalations, conversations, messages, tenantMemberships, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
 import { sendZapiText } from "../services/zapi";
 import { assertTenantQuota } from "../planLimits";
 import { transitionConversation } from "../conversationLifecycle";
+import { recordTenantAudit } from "../audit";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
 
 export const conversationRouter = router({
+  escalations: protectedProcedure
+    .input(tenantInput)
+    .query(async ({ ctx, input }) => {
+      await requireTenantAccess(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      return db.select({ id: conversationEscalations.id, conversationId: conversationEscalations.conversationId, reason: conversationEscalations.reason, escalatedAt: conversationEscalations.escalatedAt, contactName: contacts.name, contactPhone: contacts.phone, latestMessagePreview: conversations.latestMessagePreview }).from(conversationEscalations).innerJoin(conversations, eq(conversationEscalations.conversationId, conversations.id)).leftJoin(contacts, eq(conversations.contactId, contacts.id)).where(and(eq(conversationEscalations.tenantId, input.tenantId), eq(conversationEscalations.status, "pending"))).orderBy(desc(conversationEscalations.escalatedAt)).limit(30);
+    }),
+
+  acknowledgeEscalation: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), escalationId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const access = await requireTenantAccess(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [escalation] = await db.select({ id: conversationEscalations.id, conversationId: conversationEscalations.conversationId }).from(conversationEscalations).where(and(eq(conversationEscalations.id, input.escalationId), eq(conversationEscalations.tenantId, input.tenantId), eq(conversationEscalations.status, "pending"))).limit(1);
+      if (!escalation) throw new TRPCError({ code: "NOT_FOUND", message: "Escalonamento não encontrado ou já assumido." });
+      const now = new Date();
+      await db.update(conversationEscalations).set({ status: "acknowledged", acknowledgedMembershipId: access.membershipId, acknowledgedAt: now }).where(eq(conversationEscalations.id, escalation.id));
+      await db.update(conversations).set({ queue: "human", assignedMembershipId: access.membershipId, updatedAt: now }).where(and(eq(conversations.id, escalation.conversationId), eq(conversations.tenantId, input.tenantId)));
+      await db.insert(messages).values({ tenantId: input.tenantId, conversationId: escalation.conversationId, authorMembershipId: access.membershipId, direction: "internal_note", channel: "internal", body: "Escalonamento assumido por um atendente." });
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "conversation.escalation_acknowledged", entityType: "conversation_escalation", entityId: escalation.id, metadata: { conversationId: escalation.conversationId } });
+      return { success: true as const, conversationId: escalation.conversationId };
+    }),
+
   list: protectedProcedure
     .input(tenantInput.extend({ queue: z.enum(["ai", "human", "resolved"]).optional(), search: z.string().max(120).optional() }))
     .query(async ({ ctx, input }) => {

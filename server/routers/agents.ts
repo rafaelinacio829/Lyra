@@ -1,7 +1,7 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { agentProfiles } from "../../drizzle/schema";
+import { agentProfiles, auditLogs, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAdmin, requireTenantAccess } from "../tenantAccess";
@@ -11,6 +11,7 @@ import { recordTenantAudit } from "../audit";
 import { aiProviderCatalog, aiProviderIds, type AiProviderId } from "../../shared/aiProviders";
 import { assertProviderConfiguration, testConfiguredAiAgent } from "../services/aiProvider";
 import { findPresetAgent, presetAgentIds, presetAgents } from "../agents/presetAgents";
+import { presentAgentAudit } from "../agentGovernance";
 
 const agentInput = z.object({
   tenantId: z.number().int().positive(),
@@ -72,6 +73,18 @@ export const agentRouter = router({
         const installedAgentId = agentsByName.get(preset.name.toLocaleLowerCase("pt-BR")) ?? null;
         return { ...preset, isInstalled: installedAgentId !== null, installedAgentId };
       });
+    }),
+
+  history: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), agentId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireTenantAccess(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [agent] = await db.select({ id: agentProfiles.id }).from(agentProfiles).where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId))).limit(1);
+      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agente não encontrado." });
+      const rows = await db.select({ action: auditLogs.action, createdAt: auditLogs.createdAt, actorName: users.name }).from(auditLogs).leftJoin(users, eq(auditLogs.actorUserId, users.id)).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.entityType, "agent"), eq(auditLogs.entityId, String(input.agentId)))).orderBy(desc(auditLogs.createdAt)).limit(20);
+      return rows.map(presentAgentAudit);
     }),
 
   installPreset: protectedProcedure
@@ -143,7 +156,7 @@ export const agentRouter = router({
         isDefault: activeCount?.value === 0,
       })
       .$returningId();
-
+    await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.created", entityType: "agent", entityId: created.id, metadata: { provider: input.provider, mode: input.mode } });
     return { id: created.id };
   }),
 
@@ -180,7 +193,7 @@ export const agentRouter = router({
         .update(agentProfiles)
         .set({ isActive: input.isActive })
         .where(and(eq(agentProfiles.id, input.agentId), eq(agentProfiles.tenantId, input.tenantId)));
-
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.activation_updated", entityType: "agent", entityId: input.agentId, metadata: { isActive: input.isActive } });
       return { success: true };
     }),
 

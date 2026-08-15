@@ -20,6 +20,7 @@ import ErpPage from "./pages/ErpPage";
 import WorkspaceHome from "./pages/WorkspaceHome";
 import CustomerLogin from "./pages/CustomerLogin";
 import AccountSecurityPage from "./pages/AccountSecurityPage";
+import OperatingRulesPage from "./pages/OperatingRulesPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -40,6 +41,7 @@ function Router() {
       <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>
       <Route path={"/app/integrations"}><DashboardLayout><IntegrationsPage /></DashboardLayout></Route>
       <Route path={"/app/account"}><DashboardLayout><AccountSecurityPage /></DashboardLayout></Route>
+      <Route path={"/app/operations"}><DashboardLayout><OperatingRulesPage /></DashboardLayout></Route>
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

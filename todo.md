@@ -104,7 +104,14 @@
 - [ ] Definir um fluxo completo de recuperação de conta, exclusão de conta e privacidade para clientes do SaaS.
 - [ ] Adicionar observabilidade operacional de produção com alertas de erros, disponibilidade de integrações e trilha de incidentes.
 - [x] Evoluir o onboarding guiado de tenant com checklist de ativação de canal, agente, equipe e primeira conversa.
-- [ ] Implementar automações de atendimento configuráveis por tenant com regras de horário, SLA, roteamento e escalonamento humano.
+- [x] Implementar automações de atendimento configuráveis por tenant com regras de horário, SLA, roteamento e escalonamento humano.
+- [x] Adicionar testes integrados para leitura, atualização e aplicação das regras operacionais no runtime de atendimento.
+- [x] Implementar roteamento explícito por tenant entre fila de IA e humana conforme política e horário configurados.
+- [x] Implementar escalonamento humano efetivo para conversas sem responsável, além do alerta visual configurável.
+- [x] Adicionar cenário integrado com persistência real para regras operacionais e roteamento de entrada por tenant.
+- [x] Implementar fila persistida e ação operacional de escalonamento para conversas humanas sem responsável.
+- [x] Validar SLA, roteamento e escalonamento com dados persistidos do tenant em teste integrado reversível.
 - [ ] Preparar conformidade mobile para publicação futura, incluindo domínio próprio, notificações, conta de revisão e requisitos das lojas.
 - [x] Implementar alteração de senha, listagem e revogação de sessões, trilha de auditoria e solicitação autenticada de exclusão de conta.
 - [x] Exibir saúde operacional por tenant, com estado de conexões, canais verificados, falhas e sinais acionáveis no dashboard.
+- [x] Adicionar histórico seguro de governança dos agentes, com auditoria de criação, configuração, testes, alteração de perfil e ativação.

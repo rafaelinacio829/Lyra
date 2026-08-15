@@ -1,13 +1,25 @@
 import { and, desc, eq } from "drizzle-orm";
-import { agentProfiles, contacts, conversations, messages } from "../../drizzle/schema";
+import { agentProfiles, contacts, conversationEscalations, conversations, messages, tenantOperatingRules } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { sendZapiText } from "./zapi";
 import { assertTenantQuota } from "../planLimits";
 import { invokeConfiguredAiAgent } from "./aiProvider";
+import { decideInboundRouting, normalizeBusinessHours } from "../operatingRules";
 
 export async function runAiForInboundMessage({ tenantId, conversationId, contactId, contactPhone, body }: { tenantId: number; conversationId: number; contactId: number; contactPhone: string; body: string }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const [operatingRule] = await db.select().from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, tenantId)).limit(1);
+  const inboundRouting = operatingRule ? decideInboundRouting({ isEnabled: operatingRule.isEnabled, inboundRouting: operatingRule.inboundRouting as "ai_first" | "human_first", handoffOutsideBusinessHours: operatingRule.handoffOutsideBusinessHours, timezone: operatingRule.timezone, businessHours: normalizeBusinessHours(operatingRule.businessHours) }) : "ai";
+  if (inboundRouting === "human") {
+    const routingDetail = operatingRule?.inboundRouting === "human_first" ? "Transferido para atendimento humano pela política de roteamento do tenant." : "Transferido para atendimento humano fora do horário comercial configurado.";
+    const detail = operatingRule?.autoEscalateUnassigned ? `${routingDetail} Escalonamento automático registrado para uma conversa ainda sem responsável.` : routingDetail;
+    await db.update(conversations).set({ queue: "human", assignedMembershipId: null, updatedAt: new Date() }).where(and(eq(conversations.id, conversationId), eq(conversations.tenantId, tenantId)));
+    if (operatingRule?.autoEscalateUnassigned) await db.insert(conversationEscalations).values({ tenantId, conversationId, reason: operatingRule.inboundRouting === "human_first" ? "human_routing" : "outside_business_hours", status: "pending" }).onDuplicateKeyUpdate({ set: { reason: operatingRule.inboundRouting === "human_first" ? "human_routing" : "outside_business_hours", status: "pending", acknowledgedMembershipId: null, acknowledgedAt: null, resolvedAt: null, escalatedAt: new Date() } });
+    await assertTenantQuota(tenantId, "messages");
+    await db.insert(messages).values({ tenantId, conversationId, direction: "internal_note", channel: "internal", body: detail });
+    return { skipped: operatingRule?.inboundRouting === "human_first" ? "human_routing" as const : "outside_business_hours" as const };
+  }
   const [agent] = await db
     .select()
     .from(agentProfiles)
