@@ -235,6 +235,10 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setLocation("/app/account")} className="cursor-pointer">
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  <span>Conta e segurança</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

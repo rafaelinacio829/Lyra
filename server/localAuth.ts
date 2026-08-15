@@ -14,6 +14,7 @@ export function normalizeEmail(email: string) { return email.trim().toLocaleLowe
 export function createLocalOpenId() { return `local_${randomUUID()}`; }
 export function createSessionToken() { return randomBytes(48).toString("base64url"); }
 export function tokenHash(token: string) { return createHash("sha256").update(token).digest("hex"); }
+export function sessionTokenHashFromRequest(req: Request) { const token = parseCookies(req.headers.cookie ?? "")[COOKIE_NAME]; return token ? tokenHash(token) : null; }
 
 export async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex"); const derived = await scrypt(password, salt, 64) as Buffer;
@@ -35,15 +36,15 @@ export async function createLocalSession(userId: number) {
 }
 
 export async function revokeLocalSession(req: Request) {
-  const token = parseCookies(req.headers.cookie ?? "")[COOKIE_NAME]; if (!token) return;
+  const currentTokenHash = sessionTokenHashFromRequest(req); if (!currentTokenHash) return;
   const db = await getDb(); if (!db) return;
-  await db.update(authSessions).set({ revokedAt: new Date() }).where(eq(authSessions.tokenHash, tokenHash(token)));
+  await db.update(authSessions).set({ revokedAt: new Date() }).where(eq(authSessions.tokenHash, currentTokenHash));
 }
 
 export async function getLocalUserFromRequest(req: Request): Promise<User | null> {
-  const token = parseCookies(req.headers.cookie ?? "")[COOKIE_NAME]; if (!token) return null;
+  const currentTokenHash = sessionTokenHashFromRequest(req); if (!currentTokenHash) return null;
   const db = await getDb(); if (!db) return null;
-  const [row] = await db.select({ sessionId: authSessions.id, user: users }).from(authSessions).innerJoin(users, eq(authSessions.userId, users.id)).where(and(eq(authSessions.tokenHash, tokenHash(token)), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, new Date()))).limit(1);
+  const [row] = await db.select({ sessionId: authSessions.id, user: users }).from(authSessions).innerJoin(users, eq(authSessions.userId, users.id)).where(and(eq(authSessions.tokenHash, currentTokenHash), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, new Date()))).limit(1);
   if (!row) return null;
   await db.update(authSessions).set({ lastSeenAt: new Date() }).where(eq(authSessions.id, row.sessionId));
   return row.user;

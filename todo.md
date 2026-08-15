@@ -101,3 +101,9 @@
 - [x] Adicionar controle visual e testes de regressão para os agentes de teste pré-definidos.
 - [x] Corrigir o ordenamento SQL da produtividade no relatório por tenant e cobrir o caminho com teste integrado transacional.
 - [x] Validar explicitamente no teste transacional os indicadores de reabertura retornados pelo relatório a partir de `reopenedAt` persistido.
+- [ ] Definir um fluxo completo de recuperação de conta, exclusão de conta e privacidade para clientes do SaaS.
+- [ ] Adicionar observabilidade operacional de produção com alertas de erros, disponibilidade de integrações e trilha de incidentes.
+- [ ] Evoluir o onboarding guiado de tenant com checklist de ativação de canal, agente, equipe e primeira conversa.
+- [ ] Implementar automações de atendimento configuráveis por tenant com regras de horário, SLA, roteamento e escalonamento humano.
+- [ ] Preparar conformidade mobile para publicação futura, incluindo domínio próprio, notificações, conta de revisão e requisitos das lojas.
+- [x] Implementar alteração de senha, listagem e revogação de sessões, trilha de auditoria e solicitação autenticada de exclusão de conta.
