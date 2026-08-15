@@ -39,8 +39,8 @@
 - [x] Adicionar ao módulo de relatórios o volume por fila no período, não apenas a contagem instantânea do dashboard.
 - [x] Cobrir métricas de reabertura e volume por fila com testes Vitest de regressão.
 - [x] Adicionar testes Vitest ao módulo de relatórios, validando taxa de reabertura e volume por fila a partir de agregados de conversas do tenant.
-- [ ] Adicionar testes de ciclo de vida integrados com banco para transferência e reabertura, confirmando a persistência de `reopenedAt` usada pelos fluxos de transferência e webhook Z-API.
-- [ ] Adicionar cenário ponta a ponta com banco para `reports`, `conversations.transfer` e webhook Z-API, validando persistência de `reopenedAt` e cálculo final do relatório.
+- [x] Adicionar testes de ciclo de vida integrados com banco para transferência e reabertura, confirmando a persistência de `reopenedAt` usada pelos fluxos de transferência e webhook Z-API.
+- [x] Adicionar cenário ponta a ponta com banco para `reports`, `conversations.transfer` e webhook Z-API, validando persistência de `reopenedAt` e cálculo final do relatório.
 - [x] Criar procedures explícitas para super-admin, administrador do tenant e atendente, com testes que neguem acesso cruzado entre tenants.
 - [x] Completar edição e remoção de contatos, membros e times, além de validar na UI os fluxos de presença e carga de trabalho por atendente.
 - [x] Preparar regras de alerta e adaptador de entrega de e-mail que permanece desativado sem domínio remetente e credenciais válidas.
@@ -99,3 +99,5 @@
 - [x] Criar catálogo de agentes de teste pré-definidos para validação de atendimento, triagem e transferência humana.
 - [x] Permitir que o administrador do tenant instale agentes de teste pré-definidos sem duplicação e respeitando os limites do plano.
 - [x] Adicionar controle visual e testes de regressão para os agentes de teste pré-definidos.
+- [x] Corrigir o ordenamento SQL da produtividade no relatório por tenant e cobrir o caminho com teste integrado transacional.
+- [x] Validar explicitamente no teste transacional os indicadores de reabertura retornados pelo relatório a partir de `reopenedAt` persistido.
