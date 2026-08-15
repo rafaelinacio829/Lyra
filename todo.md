@@ -96,3 +96,6 @@
 - [x] Sincronizar no GitHub todas as alterações da expansão operacional.
 - [x] Substituir a marca exibida Lyra por Flow One em telas, metadados, aplicativo instalável e documentação.
 - [x] Validar textos, testes, build, publicação e sincronização do rebranding Flow One.
+- [x] Criar catálogo de agentes de teste pré-definidos para validação de atendimento, triagem e transferência humana.
+- [x] Permitir que o administrador do tenant instale agentes de teste pré-definidos sem duplicação e respeitando os limites do plano.
+- [x] Adicionar controle visual e testes de regressão para os agentes de teste pré-definidos.

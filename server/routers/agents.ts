@@ -10,6 +10,7 @@ import { assertTenantQuota } from "../planLimits";
 import { recordTenantAudit } from "../audit";
 import { aiProviderCatalog, aiProviderIds, type AiProviderId } from "../../shared/aiProviders";
 import { assertProviderConfiguration, testConfiguredAiAgent } from "../services/aiProvider";
+import { findPresetAgent, presetAgentIds, presetAgents } from "../agents/presetAgents";
 
 const agentInput = z.object({
   tenantId: z.number().int().positive(),
@@ -52,6 +53,67 @@ export const agentRouter = router({
         .from(agentProfiles)
         .where(eq(agentProfiles.tenantId, input.tenantId))
         .orderBy(desc(agentProfiles.updatedAt));
+    }),
+
+  listPresets: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireTenantAccess(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+
+      const installedAgents = await db
+        .select({ id: agentProfiles.id, name: agentProfiles.name })
+        .from(agentProfiles)
+        .where(eq(agentProfiles.tenantId, input.tenantId));
+      const agentsByName = new Map(installedAgents.map(agent => [agent.name.trim().toLocaleLowerCase("pt-BR"), agent.id]));
+
+      return presetAgents.map(preset => {
+        const installedAgentId = agentsByName.get(preset.name.toLocaleLowerCase("pt-BR")) ?? null;
+        return { ...preset, isInstalled: installedAgentId !== null, installedAgentId };
+      });
+    }),
+
+  installPreset: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), presetId: z.enum(presetAgentIds) }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const preset = findPresetAgent(input.presetId);
+      if (!preset) throw new TRPCError({ code: "NOT_FOUND", message: "Modelo de agente não encontrado." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+
+      const [existing] = await db
+        .select({ id: agentProfiles.id })
+        .from(agentProfiles)
+        .where(and(eq(agentProfiles.tenantId, input.tenantId), eq(agentProfiles.name, preset.name)))
+        .limit(1);
+      if (existing) return { id: existing.id, alreadyInstalled: true, nextSteps: preset.setupHint };
+
+      await assertTenantQuota(input.tenantId, "agents");
+      const [activeCount] = await db
+        .select({ value: count() })
+        .from(agentProfiles)
+        .where(and(eq(agentProfiles.tenantId, input.tenantId), eq(agentProfiles.isActive, true)));
+      const [created] = await db
+        .insert(agentProfiles)
+        .values({
+          tenantId: input.tenantId,
+          name: preset.name,
+          purpose: preset.purpose,
+          provider: preset.provider,
+          mode: preset.mode,
+          apiBaseUrl: aiProviderCatalog[preset.provider].defaultBaseUrl || null,
+          externalAppId: aiProviderCatalog[preset.provider].defaultModel || null,
+          instructions: preset.instructions,
+          handoffKeywords: preset.handoffKeywords,
+          isActive: false,
+          isDefault: activeCount?.value === 0,
+        })
+        .$returningId();
+
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.preset_installed", entityType: "agent", entityId: created.id, metadata: { presetId: preset.id, name: preset.name } });
+      return { id: created.id, alreadyInstalled: false, nextSteps: preset.setupHint };
     }),
 
   create: protectedProcedure.input(agentInput).mutation(async ({ ctx, input }) => {
