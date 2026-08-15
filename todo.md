@@ -71,4 +71,4 @@
 - [ ] Validar em produção a ativação da primeira senha local e o login com redirecionamento ao tenant.
 - [x] Permitir que o super-admin altere plano, método de cobrança e estado de assinatura de qualquer cliente.
 - [x] Permitir que o tenant adquira capacidade adicional de usuários, agentes e mensagens com aplicação técnica dos novos limites.
-- [ ] Enviar a versão comercial concluída para o repositório GitHub conectado do usuário.
+- [x] Enviar a versão comercial concluída para o repositório GitHub conectado do usuário.
