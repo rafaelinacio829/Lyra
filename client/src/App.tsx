@@ -18,6 +18,7 @@ import ContactsPage from "./pages/ContactsPage";
 import PlatformPage from "./pages/PlatformPage";
 import ErpPage from "./pages/ErpPage";
 import WorkspaceHome from "./pages/WorkspaceHome";
+import CustomerLogin from "./pages/CustomerLogin";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -25,6 +26,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={MarketingHome} />
       <Route path={"/pricing"} component={PricingPage} />
+      <Route path={"/login"} component={CustomerLogin} />
       <Route path={"/onboarding"} component={OnboardingTenant} />
       <Route path={"/app"}><DashboardLayout><WorkspaceHome /></DashboardLayout></Route>
       <Route path={"/app/agents"}><DashboardLayout><AgentsPage /></DashboardLayout></Route>

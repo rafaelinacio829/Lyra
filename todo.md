@@ -58,3 +58,6 @@
 - [x] Criar uma área de plataforma para super-admin acompanhar clientes, assinaturas, receita recorrente, trials e riscos comerciais do SaaS.
 - [x] Adicionar estados de erro e vazio explícitos à central comercial de plataforma.
 - [x] Cobrir `platform.overview` com testes de retorno comercial e negação de acesso para usuário não super-admin.
+- [ ] Corrigir o retorno pós-login da autenticação Manus para encaminhar ao onboarding ou painel do Lyra, sem voltar à landing page.
+- [x] Promover a identidade cadastrada de rafaelinaciosilva15@gmail.com ao papel de super-admin da plataforma (identidade já estava com papel admin).
+- [x] Ajustar o botão Entrar e o retorno pós-login para levar o cliente autenticado diretamente ao tenant associado.

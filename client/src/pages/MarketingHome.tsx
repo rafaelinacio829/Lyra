@@ -29,7 +29,7 @@ export default function MarketingHome() {
           <Link href="/pricing" className="transition-colors hover:text-[#142a36]">Planos</Link>
         </nav>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" className="hidden text-[#384b57] sm:inline-flex" onClick={() => startLogin()}>Entrar</Button>
+          <Button variant="ghost" className="hidden text-[#384b57] sm:inline-flex" onClick={() => setLocation("/login")}>Entrar</Button>
           <Button onClick={() => setLocation("/onboarding")} className="rounded-full bg-[#162b37] px-5 text-white hover:bg-[#264351]">Começar agora <ArrowRight className="ml-1 h-4 w-4" /></Button>
         </div>
       </header>
