@@ -4,13 +4,32 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import DashboardLayout from "./components/DashboardLayout";
+import AgentsPage from "./pages/AgentsPage";
+import ConversationsPage from "./pages/ConversationsPage";
+import MarketingHome from "./pages/MarketingHome";
+import OnboardingTenant from "./pages/OnboardingTenant";
+import PricingPage from "./pages/PricingPage";
+import TeamPage from "./pages/TeamPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
+import BillingPage from "./pages/BillingPage";
+import MetricsPage from "./pages/MetricsPage";
+import WorkspaceHome from "./pages/WorkspaceHome";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
+      <Route path={"/"} component={MarketingHome} />
+      <Route path={"/pricing"} component={PricingPage} />
+      <Route path={"/onboarding"} component={OnboardingTenant} />
+      <Route path={"/app"}><DashboardLayout><WorkspaceHome /></DashboardLayout></Route>
+      <Route path={"/app/agents"}><DashboardLayout><AgentsPage /></DashboardLayout></Route>
+      <Route path={"/app/conversations"}><DashboardLayout><ConversationsPage /></DashboardLayout></Route>
+      <Route path={"/app/team"}><DashboardLayout><TeamPage /></DashboardLayout></Route>
+      <Route path={"/app/metrics"}><DashboardLayout><MetricsPage /></DashboardLayout></Route>
+      <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>
+      <Route path={"/app/integrations"}><DashboardLayout><IntegrationsPage /></DashboardLayout></Route>
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

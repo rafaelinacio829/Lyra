@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `reopened_at` timestamp;

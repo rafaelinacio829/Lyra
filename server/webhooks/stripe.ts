@@ -1,0 +1,61 @@
+import type { Request, Response } from "express";
+import Stripe from "stripe";
+import { and, eq } from "drizzle-orm";
+import { plans, subscriptions, tenants } from "../../drizzle/schema";
+import { getDb } from "../db";
+import { stripe } from "../billing/stripe";
+
+export function stripeStatus(status: string) {
+  if (status === "active") return "active" as const;
+  if (status === "trialing") return "trialing" as const;
+  if (status === "past_due") return "past_due" as const;
+  if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") return "cancelled" as const;
+  return "active" as const;
+}
+
+async function planIdFromCode(code: string | undefined) {
+  const db = await getDb();
+  if (!db || !code) return null;
+  const [plan] = await db.select({ id: plans.id }).from(plans).where(eq(plans.code, code)).limit(1);
+  return plan?.id ?? null;
+}
+
+export async function handleStripeWebhook(req: Request, res: Response) {
+  const signature = req.headers["stripe-signature"];
+  if (typeof signature !== "string" || !process.env.STRIPE_WEBHOOK_SECRET) return res.status(400).json({ error: "signature_missing" });
+  let event: Stripe.Event;
+  try { event = stripe.webhooks.constructEvent(req.body, signature, process.env.STRIPE_WEBHOOK_SECRET); } catch { return res.status(400).json({ error: "signature_invalid" }); }
+  if (event.id.startsWith("evt_test_")) return res.json({ verified: true });
+  const db = await getDb();
+  if (!db) return res.status(503).json({ error: "database_unavailable" });
+  try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const tenantId = Number(session.metadata?.tenant_id);
+      const planId = await planIdFromCode(session.metadata?.plan_code);
+      if (Number.isInteger(tenantId) && planId) {
+        await db.update(subscriptions).set({ planId, providerCustomerId: typeof session.customer === "string" ? session.customer : null, providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, status: "active", cancelAtPeriodEnd: false }).where(eq(subscriptions.tenantId, tenantId));
+        await db.update(tenants).set({ status: "active" }).where(eq(tenants.id, tenantId));
+      }
+    }
+    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const tenantId = Number(subscription.metadata.tenant_id);
+      if (Number.isInteger(tenantId)) {
+        const planId = await planIdFromCode(subscription.metadata.plan_code);
+        await db.update(subscriptions).set({ ...(planId ? { planId } : {}), providerSubscriptionId: subscription.id, providerCustomerId: typeof subscription.customer === "string" ? subscription.customer : null, status: stripeStatus(subscription.status), billingInterval: subscription.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly", cancelAtPeriodEnd: subscription.cancel_at_period_end, currentPeriodEndsAt: subscription.items.data[0]?.current_period_end ? new Date(subscription.items.data[0].current_period_end * 1000) : null }).where(eq(subscriptions.tenantId, tenantId));
+        if (subscription.status === "canceled") await db.update(tenants).set({ status: "suspended" }).where(eq(tenants.id, tenantId));
+      }
+    }
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = (invoice as unknown as { subscription?: string }).subscription ?? null;
+      if (subscriptionId) await db.update(subscriptions).set({ status: "active" }).where(eq(subscriptions.providerSubscriptionId, subscriptionId));
+    }
+    console.info("[Stripe webhook]", { eventType: event.type, eventId: event.id, created: event.created });
+    return res.json({ received: true });
+  } catch (error) {
+    console.error("[Stripe webhook] processing failed", { eventType: event.type, eventId: event.id });
+    return res.status(500).json({ error: "processing_failed" });
+  }
+}

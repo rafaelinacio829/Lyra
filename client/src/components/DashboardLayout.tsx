@@ -21,15 +21,20 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { Bot, ChartNoAxesCombined, CreditCard, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Visão geral", path: "/app" },
+  { icon: MessageSquareText, label: "Conversas", path: "/app/conversations" },
+  { icon: Bot, label: "Agentes", path: "/app/agents" },
+  { icon: Users, label: "Equipe", path: "/app/team" },
+  { icon: ChartNoAxesCombined, label: "Métricas", path: "/app/metrics" },
+  { icon: CreditCard, label: "Plano e cobrança", path: "/app/billing" },
+  { icon: Settings2, label: "Integrações", path: "/app/integrations" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -61,11 +66,11 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+            <h1 className="font-display text-3xl tracking-tight text-center text-[#223c48]">
+              Entre para acessar sua operação
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              O painel é protegido por autenticação e apresenta somente os dados da sua empresa.
             </p>
           </div>
           <Button
@@ -73,7 +78,7 @@ export default function DashboardLayout({
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+            Entrar com segurança
           </Button>
         </div>
       </div>
@@ -154,7 +159,7 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
-          className="border-r-0"
+          className="border-r-0 bg-[#18333f] text-[#e8f1ee]"
           disableTransition={isResizing}
         >
           <SidebarHeader className="h-16 justify-center">
@@ -168,8 +173,8 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                  <span className="font-display text-xl tracking-tight truncate text-white">
+                    lyra
                   </span>
                 </div>
               ) : null}
@@ -189,7 +194,7 @@ function DashboardLayoutContent({
                       className={`h-10 transition-all font-normal`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        className={`h-4 w-4 ${isActive ? "text-[#c8f07d]" : "text-[#b5c4c8]"}`}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -224,7 +229,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>Sair</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
