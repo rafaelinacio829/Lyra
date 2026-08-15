@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { capacityAddons, plans, subscriptions, tenants, usageCounters } from "../../drizzle/schema";
+import { capacityAddons, integrationConfigs, plans, subscriptions, tenants, usageCounters } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { platformAdminProcedure, router } from "../_core/trpc";
 import { scoreCustomerHealth, summarizePlatformCustomers } from "../platformMetrics";
@@ -25,6 +25,11 @@ export const platformRouter = router({
     const customersWithHealth = customers.map(customer => { const activity = usageByTenant.get(customer.id); return { ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0, health: scoreCustomerHealth({ ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0 }) }; });
     const health = { critical: customersWithHealth.filter(customer => customer.health.level === "critical").length, attention: customersWithHealth.filter(customer => customer.health.level === "attention").length, healthy: customersWithHealth.filter(customer => customer.health.level === "healthy").length };
     return { metrics: summarizePlatformCustomers(customers), customers: customersWithHealth, health };
+  }),
+  operationalIncidents: platformAdminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    return db.select({ id: integrationConfigs.id, tenantId: integrationConfigs.tenantId, tenantName: tenants.name, provider: integrationConfigs.provider, name: integrationConfigs.name, lastError: integrationConfigs.lastError, updatedAt: integrationConfigs.updatedAt }).from(integrationConfigs).innerJoin(tenants, eq(integrationConfigs.tenantId, tenants.id)).where(eq(integrationConfigs.status, "error")).orderBy(desc(integrationConfigs.updatedAt)).limit(20);
   }),
   setTenantStatus: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), status: z.enum(["active", "suspended"]) })).mutation(async ({ input }) => {
     const db = await getDb();

@@ -117,3 +117,4 @@
 - [x] Adicionar histórico seguro de governança dos agentes, com auditoria de criação, configuração, testes, alteração de perfil e ativação.
 - [x] Adicionar saúde da carteira SaaS para super-admin, com risco de cobrança, cancelamento, trial próximo e ausência de atividade mensal.
 - [x] Reforçar o PWA com convite de instalação, metadados mobile e ciclo seguro de atualização do service worker.
+- [x] Adicionar verificação interna de disponibilidade do banco e painel de incidentes de integrações para super-admin.
