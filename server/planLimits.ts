@@ -1,6 +1,6 @@
 import { and, count, eq, gte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { agentProfiles, capacityAddons, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships } from "../drizzle/schema";
+import { agentProfiles, capacityAddons, conversations, integrationConfigs, messages, plans, privateFiles, subscriptions, tenantMemberships, tenants } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type TenantQuota = "members" | "agents" | "integrations" | "conversations" | "messages" | "storage";
@@ -14,13 +14,16 @@ async function tenantPlan(tenantId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
   const [subscription] = await db
-    .select({ status: subscriptions.status, includedMembers: plans.includedMembers, includedAgents: plans.includedAgents, includedIntegrations: plans.includedIntegrations, includedConversations: plans.includedConversations, includedMessages: plans.includedMessages, includedStorageMb: plans.includedStorageMb, planName: plans.name })
+    .select({ status: subscriptions.status, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, includedMembers: plans.includedMembers, includedAgents: plans.includedAgents, includedIntegrations: plans.includedIntegrations, includedConversations: plans.includedConversations, includedMessages: plans.includedMessages, includedStorageMb: plans.includedStorageMb, planName: plans.name })
     .from(subscriptions)
     .innerJoin(plans, eq(subscriptions.planId, plans.id))
+    .innerJoin(tenants, eq(subscriptions.tenantId, tenants.id))
     .where(eq(subscriptions.tenantId, tenantId))
     .limit(1);
   if (!subscription) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O tenant não possui plano ativo." });
   if (!["trialing", "active", "past_due"].includes(subscription.status)) throw new TRPCError({ code: "FORBIDDEN", message: "A assinatura deste tenant não permite novas operações." });
+  if (subscription.tenantStatus === "trial" && subscription.trialEndsAt && subscription.trialEndsAt.getTime() <= Date.now()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O trial desta empresa terminou. Escolha um plano para continuar a operação." });
+  if (subscription.tenantStatus === "suspended" || subscription.tenantStatus === "cancelled") throw new TRPCError({ code: "FORBIDDEN", message: "A operação desta empresa está suspensa." });
   const [addons] = await db.select({ members: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'members' then ${capacityAddons.quantity} else 0 end), 0)`, agents: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'agents' then ${capacityAddons.quantity} else 0 end), 0)`, messages: sql<number>`coalesce(sum(case when ${capacityAddons.type} = 'messages' then ${capacityAddons.quantity} * 10000 else 0 end), 0)` }).from(capacityAddons).where(and(eq(capacityAddons.tenantId, tenantId), eq(capacityAddons.status, "active")));
   return { ...subscription, addonMembers: Number(addons?.members ?? 0), addonAgents: Number(addons?.agents ?? 0), addonMessages: Number(addons?.messages ?? 0) };
 }

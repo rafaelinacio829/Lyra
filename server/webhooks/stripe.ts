@@ -33,11 +33,11 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       const session = event.data.object as Stripe.Checkout.Session;
       const tenantId = Number(session.metadata?.tenant_id);
       const addonId = Number(session.metadata?.capacity_addon_id);
-      if (Number.isInteger(addonId) && addonId > 0) await db.update(capacityAddons).set({ status: "active", providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, startsAt: new Date() }).where(eq(capacityAddons.id, addonId));
+      if (Number.isInteger(addonId) && addonId > 0) await db.update(capacityAddons).set({ providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null }).where(eq(capacityAddons.id, addonId));
       const planId = await planIdFromCode(session.metadata?.plan_code);
       if (Number.isInteger(tenantId) && planId) {
-        await db.update(subscriptions).set({ planId, providerCustomerId: typeof session.customer === "string" ? session.customer : null, providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, status: "active", cancelAtPeriodEnd: false }).where(eq(subscriptions.tenantId, tenantId));
-        await db.update(tenants).set({ status: "active" }).where(eq(tenants.id, tenantId));
+        const paymentMethod = session.metadata?.payment_method;
+        await db.update(subscriptions).set({ planId, providerCustomerId: typeof session.customer === "string" ? session.customer : null, providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null, ...(paymentMethod === "card" || paymentMethod === "boleto" || paymentMethod === "automatic" ? { paymentMethod } : {}), cancelAtPeriodEnd: false }).where(eq(subscriptions.tenantId, tenantId));
       }
     }
     if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
@@ -47,14 +47,22 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       if (Number.isInteger(addonId) && addonId > 0) await db.update(capacityAddons).set({ status: subscription.status === "past_due" ? "past_due" : subscription.status === "canceled" ? "cancelled" : "active", providerSubscriptionId: subscription.id, endsAt: subscription.status === "canceled" ? new Date() : null }).where(eq(capacityAddons.id, addonId));
       if (Number.isInteger(tenantId)) {
         const planId = await planIdFromCode(subscription.metadata.plan_code);
-        await db.update(subscriptions).set({ ...(planId ? { planId } : {}), providerSubscriptionId: subscription.id, providerCustomerId: typeof subscription.customer === "string" ? subscription.customer : null, status: stripeStatus(subscription.status), billingInterval: subscription.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly", cancelAtPeriodEnd: subscription.cancel_at_period_end, currentPeriodEndsAt: subscription.items.data[0]?.current_period_end ? new Date(subscription.items.data[0].current_period_end * 1000) : null }).where(eq(subscriptions.tenantId, tenantId));
+        const paymentMethod = subscription.metadata.payment_method;
+        await db.update(subscriptions).set({ ...(planId ? { planId } : {}), providerSubscriptionId: subscription.id, providerCustomerId: typeof subscription.customer === "string" ? subscription.customer : null, status: stripeStatus(subscription.status), ...(paymentMethod === "card" || paymentMethod === "boleto" || paymentMethod === "automatic" ? { paymentMethod } : {}), billingInterval: subscription.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly", cancelAtPeriodEnd: subscription.cancel_at_period_end, currentPeriodEndsAt: subscription.items.data[0]?.current_period_end ? new Date(subscription.items.data[0].current_period_end * 1000) : null }).where(eq(subscriptions.tenantId, tenantId));
+        if (subscription.status === "trialing") await db.update(tenants).set({ status: "trial" }).where(eq(tenants.id, tenantId));
+        if (subscription.status === "active") await db.update(tenants).set({ status: "active" }).where(eq(tenants.id, tenantId));
         if (subscription.status === "canceled") await db.update(tenants).set({ status: "suspended" }).where(eq(tenants.id, tenantId));
       }
     }
     if (event.type === "invoice.paid") {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = (invoice as unknown as { subscription?: string }).subscription ?? null;
-      if (subscriptionId) await db.update(subscriptions).set({ status: "active" }).where(eq(subscriptions.providerSubscriptionId, subscriptionId));
+      if (subscriptionId) { await db.update(subscriptions).set({ status: "active" }).where(eq(subscriptions.providerSubscriptionId, subscriptionId)); await db.update(tenants).set({ status: "active" }).where(eq(tenants.id, Number(invoice.metadata?.tenant_id) || 0)); }
+    }
+    if (event.type === "invoice.payment_failed" || event.type === "invoice.voided" || event.type === "invoice.marked_uncollectible") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = (invoice as unknown as { subscription?: string }).subscription ?? null;
+      if (subscriptionId) await db.update(subscriptions).set({ status: "past_due" }).where(eq(subscriptions.providerSubscriptionId, subscriptionId));
     }
     console.info("[Stripe webhook]", { eventType: event.type, eventId: event.id, created: event.created });
     return res.json({ received: true });

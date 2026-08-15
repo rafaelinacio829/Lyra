@@ -49,9 +49,9 @@ Mídias, documentos de atendimento, comprovantes, arquivos de ERP e exportaçõe
 
 | Integração | Escopo do tenant | Padrão de segurança |
 |---|---|---|
-| Z-API | Instância, token, token de cliente, segredo de webhook e configurações de leitura. | Webhook por tenant, validação obrigatória, idempotência por mensagem e segredos server-side. |
+| Z-API e WhatsApp Cloud API | Credenciais do canal, identificadores, token e segredo de webhook por empresa. | Webhook por tenant, assinatura ou validação obrigatória, idempotência por mensagem e segredos server-side. |
 | Dify | Base URL, chave da aplicação, tipo de app, perfil, regras de handoff e política de fallback. | Chave mascarada, nunca retornada pelo endpoint, execução somente no servidor e log sem payload sensível. |
-| NetSuite | Conta, credencial OAuth ou API e mapeamento de documento. | Segredo por tenant, TLS obrigatório, resposta sanitizada e arquivos privados. |
+| ERP personalizado | URL HTTPS pública, caminhos de verificação e consulta, token e mapeamento de documento. | URL validada contra destinos locais, segredo por tenant, TLS obrigatório, resposta sanitizada e arquivos privados. |
 | Pagamentos | Cliente, preços, assinatura e estado de cobrança. | Webhook assinado, idempotência por evento e limites sincronizados por estado de assinatura. |
 
 ## Entregas da primeira versão comercial

@@ -17,6 +17,7 @@ export const tenantRole = mysqlEnum("tenant_role", ["tenant_admin", "agent"]);
 export const memberPresence = mysqlEnum("member_presence", ["online", "busy", "away", "offline"]);
 export const subscriptionStatus = mysqlEnum("subscription_status", ["trialing", "active", "past_due", "paused", "cancelled"]);
 export const billingMethod = mysqlEnum("billing_method", ["stripe", "pix", "invoice", "bank_transfer", "manual"]);
+export const subscriptionPaymentMethod = mysqlEnum("subscription_payment_method", ["automatic", "card", "boleto"]);
 export const capacityAddonType = mysqlEnum("capacity_addon_type", ["members", "agents", "messages"]);
 export const capacityAddonStatus = mysqlEnum("capacity_addon_status", ["pending", "active", "past_due", "cancelled"]);
 export const agentProvider = mysqlEnum("agent_provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
@@ -24,7 +25,7 @@ export const agentMode = mysqlEnum("agent_mode", ["chat", "streaming", "workflow
 export const conversationQueue = mysqlEnum("conversation_queue", ["ai", "human", "resolved"]);
 export const messageDirection = mysqlEnum("message_direction", ["inbound", "outbound", "internal_note"]);
 export const fileClassification = mysqlEnum("file_classification", ["media", "invoice", "financial_document", "conversation_export"]);
-export const integrationProvider = mysqlEnum("integration_provider", ["zapi", "dify", "netsuite"]);
+export const integrationProvider = mysqlEnum("integration_provider", ["zapi", "meta", "dify", "erp_custom"]);
 export const integrationStatus = mysqlEnum("integration_status", ["draft", "verified", "active", "error", "disabled"]);
 
 /** Core identity table managed by Manus OAuth. */
@@ -147,6 +148,7 @@ export const subscriptions = mysqlTable(
     providerCustomerId: varchar("provider_customer_id", { length: 255 }),
     providerSubscriptionId: varchar("provider_subscription_id", { length: 255 }),
     billingMethod: billingMethod.notNull().default("stripe"),
+    paymentMethod: subscriptionPaymentMethod.notNull().default("automatic"),
     billingReference: varchar("billing_reference", { length: 255 }),
     billingInterval: varchar("billing_interval", { length: 16 }).notNull().default("monthly"),
     currentPeriodEndsAt: timestamp("current_period_ends_at"),

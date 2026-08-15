@@ -8,9 +8,13 @@ A Z-API envia eventos para endpoints previamente configurados via POST. O SaaS d
 
 A chave de API no Dify é associada a uma aplicação e as chamadas devem distinguir usuários finais por um identificador de usuário. A camada do Lyra guardará a chave de cada tenant no servidor, associará cada perfil a uma aplicação e tratará chat, streaming, workflow ou completion de acordo com o modo configurado. [4]
 
-## NetSuite
+## WhatsApp Cloud API oficial
 
-O SuiteTalk REST permite operações sobre registros e consultas. A documentação oficial recomenda OAuth 2.0 como alternativa à autenticação baseada em token, eliminando a necessidade de armazenar credenciais de usuário; o conector do Lyra adotará uma configuração por tenant e guardará tokens exclusivamente no servidor. A fatura é exposta pelo registro REST `invoice`, condicionado aos recursos necessários da conta NetSuite. [5] [6] [7]
+A WhatsApp Business Platform Cloud API permite mensagens programáticas e entrega mensagens recebidas e atualizações de status via webhook. O Lyra mantém Phone Number ID, token de sistema, App Secret e token de verificação separados por tenant, validando assinatura HMAC antes de processar qualquer evento. [5] [6]
+
+## ERP personalizado
+
+O conector de ERP do Lyra não é acoplado a fornecedor. Cada empresa informa uma base HTTPS pública, caminho de verificação, caminho de consulta e token de API; o servidor bloqueia destinos locais e mantém a credencial cifrada. O contrato de consulta aceita uma referência configurável, como cliente, pedido ou contrato, e normaliza a resposta para o painel e os arquivos privados.
 
 ## Referências
 
@@ -18,6 +22,5 @@ O SuiteTalk REST permite operações sobre registros e consultas. A documentaç�
 [2]: https://developer.z-api.io/en/webhooks/on-message-received — **Z-API: On Receive Webhook**.
 [3]: https://developer.z-api.io/en/webhooks/update-every-webhooks — **Z-API: Update All Webhooks**.
 [4]: https://docs.dify.ai/en/api-reference/guides/get-started — **Dify: Get Started with the API**.
-[5]: https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/chapter_1540391670.html — **Oracle NetSuite: SuiteTalk REST Web Services Overview**.
-[6]: https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/chapter_157769826287.html — **Oracle NetSuite: OAuth 2.0**.
-[7]: https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_161488248489.html — **Oracle NetSuite: Invoice Record**.
+[5]: https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform — **Meta: WhatsApp Business Platform**.
+[6]: https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview — **Meta: WhatsApp Webhooks**.

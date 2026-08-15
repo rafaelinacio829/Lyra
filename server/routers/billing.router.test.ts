@@ -24,6 +24,12 @@ describe("billing router", () => {
     await expect(billingRouter.createCaller(context).createCheckout({ tenantId: 8, planCode: "growth", interval: "monthly" })).resolves.toEqual({ url: "https://checkout.stripe.test/session" });
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({ customer: "cus_existing", metadata: expect.objectContaining({ tenant_id: "8", plan_code: "growth" }), success_url: "https://lyra.example.test/app/billing?success=1" }));
   });
+  it("configura boleto e preserva o fim do trial ao criar uma assinatura", async () => {
+    const trialEndsAt = new Date(Date.now() + 86_400_000);
+    queueDbRows([{ id: 8, name: "Acme", primaryEmail: "contato@acme.test", status: "trial", trialEndsAt }], [{ id: 15, providerCustomerId: "cus_existing" }]); stripe.checkout.sessions.create.mockResolvedValue({ url: "https://checkout.stripe.test/boleto" });
+    await billingRouter.createCaller(context).createCheckout({ tenantId: 8, planCode: "starter", interval: "monthly", paymentMethod: "boleto" });
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({ payment_method_types: ["boleto"], billing_address_collection: "required", tax_id_collection: { enabled: true }, subscription_data: expect.objectContaining({ trial_end: Math.floor(trialEndsAt.getTime() / 1000), collection_method: "charge_automatically", payment_settings: { payment_method_types: ["boleto"] }, metadata: expect.objectContaining({ payment_method: "boleto" }) }) }));
+  });
   it("cria sessão do portal somente para o customer do tenant", async () => {
     queueDbRows([{ providerCustomerId: "cus_tenant" }]); stripe.billingPortal.sessions.create.mockResolvedValue({ url: "https://billing.stripe.test/session" });
     await expect(billingRouter.createCaller(context).createPortal({ tenantId: 8 })).resolves.toEqual({ url: "https://billing.stripe.test/session" });

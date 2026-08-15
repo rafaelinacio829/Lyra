@@ -8,7 +8,8 @@ import { assertTenantQuota } from "./planLimits";
 function queueRows(...rows: unknown[][]) {
   const queue = [...rows];
   const next = () => queue.shift() ?? [];
-  const db = { select: vi.fn(() => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: () => Promise.resolve(next()) }) }), where: () => Promise.resolve(next()) }) })) };
+  const joined = { innerJoin: () => joined, where: () => ({ limit: () => Promise.resolve(next()) }) };
+  const db = { select: vi.fn(() => ({ from: () => ({ innerJoin: () => joined, where: () => Promise.resolve(next()) }) })) };
   getDb.mockResolvedValue(db);
 }
 
@@ -27,5 +28,9 @@ describe("limites de plano", () => {
   it("bloqueia novas operações quando a assinatura não está elegível", async () => {
     queueRows([{ ...activePlan, status: "cancelled" }]);
     await expect(assertTenantQuota(3, "messages")).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("bloqueia operação quando o trial do tenant já terminou", async () => {
+    queueRows([{ ...activePlan, status: "trialing", tenantStatus: "trial", trialEndsAt: new Date(Date.now() - 1_000) }]);
+    await expect(assertTenantQuota(3, "messages")).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringContaining("trial") });
   });
 });

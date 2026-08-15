@@ -64,6 +64,20 @@
       "when": 1786765239578,
       "tag": "0008_pale_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1786767789070,
+      "tag": "0009_bumpy_the_enforcers",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1786768386560,
+      "tag": "0010_gorgeous_chamber",
+      "breakpoints": true
     }
   ]
 }

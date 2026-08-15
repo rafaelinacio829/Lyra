@@ -9,6 +9,7 @@ import { decryptTenantSecret, encryptTenantSecret, fingerprintTenantSecret } fro
 import { requireTenantAccess, requireTenantAdmin } from "../tenantAccess";
 import { assertTenantQuota } from "../planLimits";
 import { recordTenantAudit } from "../audit";
+import { assertCustomErpBaseUrl, verifyCustomErpConnection } from "../services/customErp";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
 
@@ -88,49 +89,62 @@ export const integrationRouter = router({
       }
     }),
 
-  saveNetSuite: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().min(2).max(120), accountId: z.string().min(3).max(120), restBaseUrl: z.string().url().max(500), clientId: z.string().min(8).max(500), clientSecret: z.string().min(8).max(500), refreshToken: z.string().min(8).max(1000) }))
+  saveMeta: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), phoneNumberId: z.string().trim().min(4).max(120), accessToken: z.string().min(20).max(2000), appSecret: z.string().min(16).max(500), graphApiVersion: z.string().regex(/^v\d+\.\d+$/).default("v23.0") }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-      const [existing] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "netsuite"), eq(integrationConfigs.name, input.name.trim()))).limit(1);
+      const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [existing] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "meta"), eq(integrationConfigs.name, input.name))).limit(1);
       if (!existing) await assertTenantQuota(input.tenantId, "integrations");
-      const secret = { clientId: input.clientId, clientSecret: input.clientSecret, refreshToken: input.refreshToken };
-      await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "netsuite", name: input.name.trim(), status: "draft", publicConfig: { accountId: input.accountId.trim(), restBaseUrl: input.restBaseUrl.replace(/\/+$/, "") }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.clientId) }).onDuplicateKeyUpdate({ set: { status: "draft", publicConfig: { accountId: input.accountId.trim(), restBaseUrl: input.restBaseUrl.replace(/\/+$/, "") }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.clientId), lastError: null } });
-      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.netsuite_configured", entityType: "integration", metadata: { name: input.name.trim(), accountId: input.accountId.trim() } });
-      return { success: true };
+      const verifyToken = randomBytes(24).toString("base64url");
+      const secret = { accessToken: input.accessToken, appSecret: input.appSecret, verifyToken };
+      const publicConfig = { phoneNumberId: input.phoneNumberId, graphApiVersion: input.graphApiVersion };
+      await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "meta", name: input.name, status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken) }).onDuplicateKeyUpdate({ set: { status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken), lastError: null } });
+      const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "meta"), eq(integrationConfigs.name, input.name))).limit(1);
+      if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Configuração Meta não foi criada." });
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.meta_configured", entityType: "integration", entityId: config.id, metadata: { name: input.name, phoneNumberId: input.phoneNumberId } });
+      return { id: config.id, webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/meta/${config.id}`, verifyToken };
     }),
 
-  testNetSuite: protectedProcedure
+  testMeta: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-      const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "netsuite"))).limit(1);
-      if (!config?.secretCiphertext || !config.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração NetSuite não encontrada." });
-      const publicConfig = config.publicConfig as { restBaseUrl?: string };
-      const baseUrl = publicConfig.restBaseUrl?.replace(/\/+$/, "");
-      if (!baseUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "URL REST do NetSuite ausente." });
-      let parsed: URL;
-      try { parsed = new URL(baseUrl); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "URL REST do NetSuite inválida." }); }
-      if (parsed.protocol !== "https:" || !parsed.hostname.endsWith("netsuite.com")) throw new TRPCError({ code: "BAD_REQUEST", message: "A URL REST deve usar HTTPS e domínio NetSuite." });
-      const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { clientId: string; clientSecret: string; refreshToken: string };
-      try {
-        const tokenResponse = await fetch(`${baseUrl}/services/rest/auth/oauth2/v1/token`, { method: "POST", headers: { Authorization: `Basic ${Buffer.from(`${secrets.clientId}:${secrets.clientSecret}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: secrets.refreshToken }).toString() });
-        if (!tokenResponse.ok) throw new Error(`OAuth ${tokenResponse.status}`);
-        const token = (await tokenResponse.json()) as { access_token?: string };
-        if (!token.access_token) throw new Error("Token ausente");
-        const verify = await fetch(`${baseUrl}/services/rest/record/v1/metadata-catalog`, { headers: { Authorization: `Bearer ${token.access_token}` } });
-        if (!verify.ok) throw new Error(`REST ${verify.status}`);
-        await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date(), lastError: null }).where(eq(integrationConfigs.id, config.id));
-        return { success: true };
-      } catch {
-        const message = "O NetSuite não aceitou a conexão. Revise a URL REST, o OAuth e as permissões da integração.";
-        await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id));
-        throw new TRPCError({ code: "BAD_GATEWAY", message });
-      }
+      const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "meta"))).limit(1);
+      if (!config?.secretCiphertext || !config.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração da WhatsApp Cloud API não encontrada." });
+      const publicConfig = config.publicConfig as { phoneNumberId?: string; graphApiVersion?: string }; const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { accessToken?: string };
+      if (!publicConfig.phoneNumberId || !secrets.accessToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A integração Meta não possui identificador ou token configurado." });
+      try { const response = await fetch(`https://graph.facebook.com/${publicConfig.graphApiVersion || "v23.0"}/${encodeURIComponent(publicConfig.phoneNumberId)}`, { headers: { Authorization: `Bearer ${secrets.accessToken}` }, signal: AbortSignal.timeout(10_000) }); if (!response.ok) throw new Error(`Meta respondeu ${response.status}`); await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date(), lastError: null }).where(eq(integrationConfigs.id, config.id)); return { success: true }; }
+      catch { const message = "A Meta não aceitou a conexão. Revise o Phone Number ID, o token de sistema, permissões e versão da Graph API."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
+    }),
+
+  saveCustomErp: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), baseUrl: z.string().url().max(500), healthPath: z.string().trim().min(1).max(240).default("/health"), lookupPath: z.string().trim().min(2).max(320), apiKey: z.string().min(8).max(1000) }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      let baseUrl: string;
+      try { baseUrl = assertCustomErpBaseUrl(input.baseUrl).toString().replace(/\/$/, ""); } catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "URL do ERP inválida." }); }
+      if (!input.healthPath.startsWith("/") || !input.lookupPath.startsWith("/")) throw new TRPCError({ code: "BAD_REQUEST", message: "Os caminhos de verificação e consulta devem iniciar com '/'." });
+      const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [existing] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "erp_custom"), eq(integrationConfigs.name, input.name))).limit(1);
+      if (!existing) await assertTenantQuota(input.tenantId, "integrations");
+      const publicConfig = { baseUrl, healthPath: input.healthPath, lookupPath: input.lookupPath };
+      await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "erp_custom", name: input.name, status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify({ apiKey: input.apiKey })), secretFingerprint: fingerprintTenantSecret(input.apiKey) }).onDuplicateKeyUpdate({ set: { status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify({ apiKey: input.apiKey })), secretFingerprint: fingerprintTenantSecret(input.apiKey), lastError: null } });
+      const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "erp_custom"), eq(integrationConfigs.name, input.name))).limit(1);
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.custom_erp_configured", entityType: "integration", entityId: config?.id, metadata: { name: input.name, baseUrl, lookupPath: input.lookupPath } });
+      return { id: config?.id, success: true };
+    }),
+
+  testCustomErp: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "erp_custom"))).limit(1);
+      if (!config) throw new TRPCError({ code: "NOT_FOUND", message: "Integração de ERP personalizada não encontrada." });
+      try { await verifyCustomErpConnection(input.tenantId, config.id); await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date(), lastError: null }).where(eq(integrationConfigs.id, config.id)); return { success: true }; }
+      catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "O ERP não aceitou a conexão."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
     }),
 });
 
@@ -144,4 +158,11 @@ export async function validateZapiWebhook(integrationId: number, webhookKey: str
   const givenBuffer = Buffer.from(webhookKey);
   if (expectedBuffer.length !== givenBuffer.length || !timingSafeEqual(expectedBuffer, givenBuffer)) return null;
   return config;
+}
+
+export async function getMetaWebhookConfig(integrationId: number, includeDraft = false) {
+  const db = await getDb();
+  if (!db) return null;
+  const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, integrationId), eq(integrationConfigs.provider, "meta"), ...(includeDraft ? [] : [eq(integrationConfigs.status, "active")]))).limit(1);
+  return config ?? null;
 }

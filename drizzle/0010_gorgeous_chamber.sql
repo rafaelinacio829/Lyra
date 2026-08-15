@@ -1,0 +1,1 @@
+ALTER TABLE `subscriptions` ADD `subscription_payment_method` enum('automatic','card','boleto') DEFAULT 'automatic' NOT NULL;

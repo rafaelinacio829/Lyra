@@ -11,7 +11,9 @@ export type TenantAccess = {
   role: "tenant_admin" | "agent";
 };
 
-export async function requireTenantAccess(userId: number, tenantId: number): Promise<TenantAccess> {
+type AccessOptions = { allowBillingAccess?: boolean };
+
+export async function requireTenantAccess(userId: number, tenantId: number, options: AccessOptions = {}): Promise<TenantAccess> {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
 
@@ -21,6 +23,8 @@ export async function requireTenantAccess(userId: number, tenantId: number): Pro
       tenantId: tenants.id,
       tenantName: tenants.name,
       tenantSlug: tenants.slug,
+      tenantStatus: tenants.status,
+      trialEndsAt: tenants.trialEndsAt,
       role: tenantMemberships.role,
     })
     .from(tenantMemberships)
@@ -38,11 +42,17 @@ export async function requireTenantAccess(userId: number, tenantId: number): Pro
     throw new TRPCError({ code: "FORBIDDEN", message: "Você não possui acesso a esta empresa." });
   }
 
-  return access;
+  const trialExpired = access.tenantStatus === "trial" && access.trialEndsAt && access.trialEndsAt.getTime() <= Date.now();
+  const inactive = access.tenantStatus === "suspended" || access.tenantStatus === "cancelled";
+  if (!options.allowBillingAccess && (trialExpired || inactive)) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: trialExpired ? "O trial desta empresa terminou. Escolha um plano para continuar a operação." : "A operação desta empresa está suspensa. Acesse a cobrança para regularizar a assinatura." });
+  }
+
+  return { membershipId: access.membershipId, tenantId: access.tenantId, tenantName: access.tenantName, tenantSlug: access.tenantSlug, role: access.role };
 }
 
-export async function requireTenantAdmin(userId: number, tenantId: number): Promise<TenantAccess> {
-  const access = await requireTenantAccess(userId, tenantId);
+export async function requireTenantAdmin(userId: number, tenantId: number, options: AccessOptions = {}): Promise<TenantAccess> {
+  const access = await requireTenantAccess(userId, tenantId, options);
   if (access.role !== "tenant_admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores da empresa podem executar esta ação." });
   }

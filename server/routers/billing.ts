@@ -25,27 +25,27 @@ async function createStripePrice(planCode: "starter" | "growth" | "scale", inter
 
 export const billingRouter = router({
   overview: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId);
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-    const [record] = await db.select({ tenantName: tenants.name, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, planCode: plans.code, planName: plans.name, status: subscriptions.status, interval: subscriptions.billingInterval, billingMethod: subscriptions.billingMethod, billingReference: subscriptions.billingReference, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, providerCustomerId: subscriptions.providerCustomerId, providerSubscriptionId: subscriptions.providerSubscriptionId }).from(subscriptions).innerJoin(tenants, eq(subscriptions.tenantId, tenants.id)).innerJoin(plans, eq(subscriptions.planId, plans.id)).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
+    const [record] = await db.select({ tenantName: tenants.name, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, planCode: plans.code, planName: plans.name, status: subscriptions.status, interval: subscriptions.billingInterval, billingMethod: subscriptions.billingMethod, paymentMethod: subscriptions.paymentMethod, billingReference: subscriptions.billingReference, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, providerCustomerId: subscriptions.providerCustomerId, providerSubscriptionId: subscriptions.providerSubscriptionId }).from(subscriptions).innerJoin(tenants, eq(subscriptions.tenantId, tenants.id)).innerJoin(plans, eq(subscriptions.planId, plans.id)).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
     if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Assinatura não encontrada." });
     return record;
   }),
 
   addonCatalog: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId); return Object.entries(capacityAddonCatalog).map(([type, item]) => ({ type: type as CapacityAddonType, ...item }));
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true }); return Object.entries(capacityAddonCatalog).map(([type, item]) => ({ type: type as CapacityAddonType, ...item }));
   }),
 
   addons: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true }); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     return db.select().from(capacityAddons).where(eq(capacityAddons.tenantId, input.tenantId)).orderBy(desc(capacityAddons.createdAt));
   }),
 
   createCheckout: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), planCode: z.enum(["starter", "growth", "scale"]), interval: z.enum(["monthly", "annual"]) }))
+    .input(z.object({ tenantId: z.number().int().positive(), planCode: z.enum(["starter", "growth", "scale"]), interval: z.enum(["monthly", "annual"]), paymentMethod: z.enum(["automatic", "card", "boleto"]).default("automatic") }))
     .mutation(async ({ ctx, input }) => {
-      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
@@ -59,23 +59,28 @@ export const billingRouter = router({
         await db.update(subscriptions).set({ providerCustomerId: customerId }).where(eq(subscriptions.id, subscription.id));
       }
       const amount = input.interval === "annual" ? plan.annualCents : plan.monthlyCents;
+      const trialEnd = tenant.status === "trial" && tenant.trialEndsAt && tenant.trialEndsAt.getTime() > Date.now() ? Math.floor(tenant.trialEndsAt.getTime() / 1000) : undefined;
+      const paymentMethodTypes = input.paymentMethod === "automatic" ? undefined : [input.paymentMethod] as Array<"card" | "boleto">;
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         client_reference_id: String(ctx.user.id),
         allow_promotion_codes: true,
+        ...(paymentMethodTypes ? { payment_method_types: paymentMethodTypes } : {}),
+        ...(input.paymentMethod === "boleto" ? { billing_address_collection: "required" as const, tax_id_collection: { enabled: true } } : {}),
         line_items: [{ price_data: { currency: "brl", product_data: { name: `Lyra ${plan.name}`, description: plan.description }, unit_amount: amount, recurring: { interval: input.interval === "annual" ? "year" : "month" } }, quantity: 1 }],
-        metadata: { tenant_id: String(input.tenantId), user_id: String(ctx.user.id), plan_code: input.planCode, customer_email: tenant.primaryEmail, customer_name: tenant.name },
-        subscription_data: { metadata: { tenant_id: String(input.tenantId), plan_code: input.planCode } },
+        metadata: { tenant_id: String(input.tenantId), user_id: String(ctx.user.id), plan_code: input.planCode, payment_method: input.paymentMethod, customer_email: tenant.primaryEmail, customer_name: tenant.name },
+        subscription_data: { metadata: { tenant_id: String(input.tenantId), plan_code: input.planCode, payment_method: input.paymentMethod }, ...(trialEnd ? { trial_end: trialEnd } : {}), ...(input.paymentMethod === "boleto" ? { collection_method: "charge_automatically" as const, payment_settings: { payment_method_types: ["boleto"] } } : {}) },
         success_url: `${originFromRequest(ctx.req)}/app/billing?success=1`,
         cancel_url: `${originFromRequest(ctx.req)}/app/billing?canceled=1`,
       });
+      await db.update(subscriptions).set({ paymentMethod: input.paymentMethod }).where(eq(subscriptions.id, subscription.id));
       if (!session.url) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Checkout não retornou URL." });
       return { url: session.url };
     }),
 
   createAddonCheckout: protectedProcedure.input(z.object({ tenantId: z.number().int().positive(), type: z.enum(["members", "agents", "messages"]), quantity: z.number().int().min(1).max(100) })).mutation(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true }); const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, input.tenantId)).limit(1); const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
     if (!tenant || !subscription) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa ou assinatura não encontrada." });
     if (subscription.billingMethod !== "stripe") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este tenant possui cobrança administrada pela plataforma. Solicite o pacote ao administrador." });
@@ -87,7 +92,7 @@ export const billingRouter = router({
   }),
 
   createPortal: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId);
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [subscription] = await db.select({ providerCustomerId: subscriptions.providerCustomerId }).from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
@@ -97,7 +102,7 @@ export const billingRouter = router({
   }),
 
   changePlan: protectedProcedure.input(z.object({ tenantId: z.number().int().positive(), planCode: z.enum(["starter", "growth", "scale"]), interval: z.enum(["monthly", "annual"]) })).mutation(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId);
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
@@ -118,7 +123,7 @@ export const billingRouter = router({
   }),
 
   invoices: protectedProcedure.input(z.object({ tenantId: z.number().int().positive() })).query(async ({ ctx, input }) => {
-    await requireTenantAdmin(ctx.user.id, input.tenantId);
+    await requireTenantAdmin(ctx.user.id, input.tenantId, { allowBillingAccess: true });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [subscription] = await db.select({ providerCustomerId: subscriptions.providerCustomerId }).from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);

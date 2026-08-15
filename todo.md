@@ -78,3 +78,18 @@
 - [x] Generalizar os textos residuais de finanças nas telas de integrações, arquivos privados e ERP opcional.
 - [x] Validar explicitamente as rotas públicas e o acesso protegido às telas impactadas após o reposicionamento: landing, planos, login, onboarding, agentes, integrações e ERP.
 - [x] Validar visualmente as telas de agentes, integrações e ERP com uma sessão autenticada de tenant após a ativação local de primeiro acesso; a rota de cobrança também carregou com plano, pacotes adicionais e sem erros no console.
+- [x] Remover o NetSuite como integração fixa e substituir por conexão de ERP personalizada por tenant.
+- [x] Adicionar WhatsApp Cloud API oficial da Meta como provedor alternativo à Z-API, com credenciais, webhook e isolamento por tenant.
+- [x] Completar o ciclo de assinatura, cobrança, mensalidades, cartão e boleto pelo checkout hospedado do gateway, sem armazenar dados de cartão no Lyra.
+- [x] Consolidar o ciclo de trial de clientes, incluindo estado, conversão, expiração com bloqueio técnico e transição por webhook de assinatura.
+- [x] Criar aplicativo móvel instalável integrado às APIs e autenticação do Lyra para acompanhamento operacional.
+- [x] Ampliar a validação automatizada e autenticada dos fluxos críticos de operação, cobrança, trial, canais e integrações.
+- [x] Implementar e testar o ciclo recorrente completo de boleto, incluindo emissão mensal por fatura, estados de falha e sincronização de assinatura.
+- [x] Adicionar validação ponta a ponta reproduzível para Meta Cloud API, ERP personalizado, cartão/boleto e conversão de trial com webhooks e contratos simulados.
+- [x] Adicionar testes integrados do ciclo de boleto cobrindo fatura mensal, pagamento, falha e sincronização de tenant e assinatura.
+- [x] Adicionar cenário simulado da Meta Cloud API com mensagem inbound válida criando ou reabrindo conversa no tenant correto.
+- [x] Adicionar teste de contrato do ERP personalizado com resposta de sucesso e erro de consulta operacional.
+- [x] Adicionar validação simulada da conversão de trial para assinatura ativa em cartão e boleto.
+- [x] Adicionar cenário reproduzível de renovação mensal por boleto, com fatura, pagamento, falha e sincronização persistida de tenant e assinatura.
+- [ ] Homologar em produção, com credenciais reais de cada tenant, a WhatsApp Cloud API, a API de ERP personalizada e os métodos habilitados no Stripe.
+- [ ] Sincronizar no GitHub todas as alterações da expansão operacional.
