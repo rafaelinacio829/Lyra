@@ -6,6 +6,7 @@ import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
 import { summarizeIntegrationHealth } from "../operationalHealth";
+import { buildActivationJourney } from "../activationJourney";
 
 const defaultPlans = [
   {
@@ -227,6 +228,7 @@ export const tenantRouter = router({
       };
       const alerts: Array<{ id: string; tone: "warning" | "critical" | "info"; title: string; detail: string }> = [];
       const operationalHealth = summarizeIntegrationHealth(integrationRows);
+      const activation = buildActivationJourney({ channelsReady: operationalHealth.channelsReady, activeAgents: actualUsage.activeAgents, activeMembers: actualUsage.activeMembers, conversations: actualUsage.conversations });
       if ((unassignedHuman?.value ?? 0) > 0) alerts.push({ id: "unassigned", tone: "warning", title: "Conversas sem atendente", detail: `${unassignedHuman?.value} conversa(s) aguardam responsável.` });
       if ((firstResponseRisk?.value ?? 0) > 0) alerts.push({ id: "sla", tone: "critical", title: "SLA próximo do limite", detail: `${firstResponseRisk?.value} conversa(s) humanas estão sem primeira resposta há mais de 20 minutos.` });
       if (subscription?.status === "trialing" && subscription.currentPeriodEndsAt && subscription.currentPeriodEndsAt.getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000) alerts.push({ id: "trial", tone: "info", title: "Trial próximo do fim", detail: `O período de teste termina em ${subscription.currentPeriodEndsAt.toLocaleDateString("pt-BR")}.` });
@@ -250,6 +252,7 @@ export const tenantRouter = router({
         queueCounts,
         alerts,
         operationalHealth,
+        activation,
       };
     }),
 });
