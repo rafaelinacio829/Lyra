@@ -43,10 +43,10 @@ export async function handleZapiWebhook(req: Request, res: Response) {
       const [created] = await db.insert(contacts).values({ tenantId: config.tenantId, name, phone }).$returningId();
       [contact] = await db.select().from(contacts).where(eq(contacts.id, created.id)).limit(1);
     }
-    let [conversation] = await db.select().from(conversations).where(and(eq(conversations.tenantId, config.tenantId), eq(conversations.contactId, contact.id), inArray(conversations.queue, ["ai", "human", "resolved"]))).orderBy(desc(conversations.updatedAt)).limit(1);
+    let [conversation] = await db.select().from(conversations).where(and(eq(conversations.tenantId, config.tenantId), eq(conversations.contactId, contact.id), eq(conversations.integrationConfigId, config.id), inArray(conversations.queue, ["ai", "human", "resolved"]))).orderBy(desc(conversations.updatedAt)).limit(1);
     if (!conversation) {
       await assertTenantQuota(config.tenantId, "conversations");
-      const [created] = await db.insert(conversations).values({ tenantId: config.tenantId, contactId: contact.id, queue: "ai", latestMessagePreview: messageText(payload), unreadCount: 1 }).$returningId();
+      const [created] = await db.insert(conversations).values({ tenantId: config.tenantId, contactId: contact.id, integrationConfigId: config.id, queue: "ai", latestMessagePreview: messageText(payload), unreadCount: 1 }).$returningId();
       [conversation] = await db.select().from(conversations).where(eq(conversations.id, created.id)).limit(1);
     } else if (shouldReopenConversation(conversation.queue)) {
       await db.update(conversations).set({ ...transitionConversation(conversation.queue, "ai", new Date()), assignedMembershipId: null, updatedAt: new Date() }).where(eq(conversations.id, conversation.id));

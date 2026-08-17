@@ -15,7 +15,7 @@ function queryChain(value: unknown) {
 
 describe("Z-API inbound webhook", () => {
   it("reopens and persists a resolved conversation before processing the inbound message", async () => {
-    mocks.validateZapiWebhook.mockResolvedValue({ tenantId: 8 });
+    mocks.validateZapiWebhook.mockResolvedValue({ id: 1, tenantId: 8 });
     mocks.runDifyForInboundMessage.mockResolvedValue({ replied: true });
     const selectResponses = [[], [{ id: 12, phone: "5511999999999" }], [{ id: 55, queue: "resolved", unreadCount: 0 }], [{ id: 55, queue: "ai", unreadCount: 0 }]];
     const updates: Array<Record<string, unknown>> = [];

@@ -118,3 +118,12 @@
 - [x] Adicionar saúde da carteira SaaS para super-admin, com risco de cobrança, cancelamento, trial próximo e ausência de atividade mensal.
 - [x] Reforçar o PWA com convite de instalação, metadados mobile e ciclo seguro de atualização do service worker.
 - [x] Adicionar verificação interna de disponibilidade do banco e painel de incidentes de integrações para super-admin.
+- [ ] Reivindicar e confirmar o sandbox Stripe para homologação exclusivamente em ambiente de teste.
+- [ ] Revisar as chaves e o endpoint de webhook Stripe cadastrados no projeto, sem expor segredos.
+- [ ] Homologar checkout, boleto, faturas e webhooks Stripe com evidências reproduzíveis de ambiente de teste.
+- [x] Permitir que cada tenant configure e gerencie múltiplas conexões de WhatsApp com nomes e credenciais isoladas.
+- [x] Identificar o canal de WhatsApp de origem nas conversas e permitir seleção segura do canal de saída.
+- [x] Adicionar interface e testes de regressão para a operação de múltiplos canais de WhatsApp por tenant.
+- [x] Exibir a conexão WhatsApp de origem na lista e no detalhe das conversas.
+- [x] Adicionar seleção explícita de conexão WhatsApp no envio de mensagens pelo detalhe da conversa.
+- [x] Cobrir a experiência de interface multicanal em testes de regressão do frontend.

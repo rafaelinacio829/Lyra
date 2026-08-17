@@ -1,0 +1,3 @@
+ALTER TABLE `conversations` ADD `integration_config_id` int;--> statement-breakpoint
+ALTER TABLE `conversations` ADD CONSTRAINT `conversations_integration_config_id_integration_configs_id_fk` FOREIGN KEY (`integration_config_id`) REFERENCES `integration_configs`(`id`) ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `conversation_tenant_integration_idx` ON `conversations` (`tenant_id`,`integration_config_id`,`updated_at`);

@@ -1,11 +1,11 @@
 import { and, asc, desc, eq, like, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contacts, conversationEscalations, conversations, messages, tenantMemberships, users } from "../../drizzle/schema";
+import { contacts, conversationEscalations, conversations, integrationConfigs, messages, tenantMemberships, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
-import { sendZapiText } from "../services/zapi";
+import { sendWhatsAppText } from "../services/zapi";
 import { assertTenantQuota } from "../planLimits";
 import { transitionConversation } from "../conversationLifecycle";
 import { recordTenantAudit } from "../audit";
@@ -62,11 +62,15 @@ export const conversationRouter = router({
           contactPhone: contacts.phone,
           assignedMembershipId: conversations.assignedMembershipId,
           assignedName: users.name,
+          integrationConfigId: conversations.integrationConfigId,
+          whatsappConnectionName: integrationConfigs.name,
+          whatsappProvider: integrationConfigs.provider,
         })
         .from(conversations)
         .leftJoin(contacts, eq(conversations.contactId, contacts.id))
         .leftJoin(tenantMemberships, eq(conversations.assignedMembershipId, tenantMemberships.id))
         .leftJoin(users, eq(tenantMemberships.userId, users.id))
+        .leftJoin(integrationConfigs, eq(conversations.integrationConfigId, integrationConfigs.id))
         .where(and(...conditions))
         .orderBy(desc(conversations.updatedAt))
         .limit(100);
@@ -79,9 +83,10 @@ export const conversationRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const [conversation] = await db
-        .select({ id: conversations.id, queue: conversations.queue, tags: conversations.tags, latestMessagePreview: conversations.latestMessagePreview, contactName: contacts.name, contactPhone: contacts.phone })
+        .select({ id: conversations.id, queue: conversations.queue, tags: conversations.tags, latestMessagePreview: conversations.latestMessagePreview, contactName: contacts.name, contactPhone: contacts.phone, integrationConfigId: conversations.integrationConfigId, whatsappConnectionName: integrationConfigs.name, whatsappProvider: integrationConfigs.provider })
         .from(conversations)
         .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+        .leftJoin(integrationConfigs, eq(conversations.integrationConfigId, integrationConfigs.id))
         .where(and(eq(conversations.id, input.conversationId), eq(conversations.tenantId, input.tenantId)))
         .limit(1);
       if (!conversation) throw new TRPCError({ code: "NOT_FOUND", message: "Conversa não encontrada." });
@@ -96,7 +101,7 @@ export const conversationRouter = router({
     }),
 
   create: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), contactName: z.string().min(2).max(255), contactPhone: z.string().min(8).max(50), initialMessage: z.string().min(1).max(5000), queue: z.enum(["ai", "human"]).default("ai") }))
+    .input(z.object({ tenantId: z.number().int().positive(), contactName: z.string().min(2).max(255), contactPhone: z.string().min(8).max(50), initialMessage: z.string().min(1).max(5000), queue: z.enum(["ai", "human"]).default("ai"), integrationId: z.number().int().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       const access = await requireTenantAccess(ctx.user.id, input.tenantId);
       await assertTenantQuota(input.tenantId, "conversations");
@@ -108,19 +113,19 @@ export const conversationRouter = router({
         const [createdContact] = await db.insert(contacts).values({ tenantId: input.tenantId, name: input.contactName.trim(), phone: input.contactPhone.trim() }).$returningId();
         [contact] = await db.select().from(contacts).where(eq(contacts.id, createdContact.id)).limit(1);
       }
-      const [createdConversation] = await db.insert(conversations).values({ tenantId: input.tenantId, contactId: contact.id, queue: input.queue, assignedMembershipId: input.queue === "human" ? access.membershipId : null, latestMessagePreview: input.initialMessage.trim(), unreadCount: 1 }).$returningId();
+      const [createdConversation] = await db.insert(conversations).values({ tenantId: input.tenantId, contactId: contact.id, integrationConfigId: input.integrationId ?? null, queue: input.queue, assignedMembershipId: input.queue === "human" ? access.membershipId : null, latestMessagePreview: input.initialMessage.trim(), unreadCount: 1 }).$returningId();
       await db.insert(messages).values({ tenantId: input.tenantId, conversationId: createdConversation.id, direction: "inbound", body: input.initialMessage.trim(), channel: "whatsapp" });
       return { id: createdConversation.id };
     }),
 
   send: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), conversationId: z.number().int().positive(), body: z.string().min(1).max(5000) }))
+    .input(z.object({ tenantId: z.number().int().positive(), conversationId: z.number().int().positive(), body: z.string().min(1).max(5000), integrationId: z.number().int().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       const access = await requireTenantAccess(ctx.user.id, input.tenantId);
       await assertTenantQuota(input.tenantId, "messages");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-      const [conversation] = await db.select({ id: conversations.id, contactId: conversations.contactId }).from(conversations).where(and(eq(conversations.id, input.conversationId), eq(conversations.tenantId, input.tenantId))).limit(1);
+      const [conversation] = await db.select({ id: conversations.id, contactId: conversations.contactId, integrationConfigId: conversations.integrationConfigId }).from(conversations).where(and(eq(conversations.id, input.conversationId), eq(conversations.tenantId, input.tenantId))).limit(1);
       if (!conversation) throw new TRPCError({ code: "NOT_FOUND", message: "Conversa não encontrada." });
       if (!conversation.contactId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A conversa não possui contato associado." });
       const [contact] = await db.select({ phone: contacts.phone }).from(contacts).where(and(eq(contacts.id, conversation.contactId), eq(contacts.tenantId, input.tenantId))).limit(1);
@@ -128,13 +133,15 @@ export const conversationRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ative uma integração Z-API válida para enviar mensagens pelo WhatsApp." });
       }
       let providerMessageId: string | null = null;
+      const integrationId = input.integrationId ?? conversation.integrationConfigId;
+      if (!integrationId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão de WhatsApp ativa para enviar esta mensagem." });
       try {
-        providerMessageId = await sendZapiText(input.tenantId, contact.phone, input.body.trim());
+        providerMessageId = await sendWhatsAppText(input.tenantId, integrationId, contact.phone, input.body.trim());
       } catch {
-        throw new TRPCError({ code: "BAD_GATEWAY", message: "A Z-API não confirmou o envio. Verifique a instância e tente novamente." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "A conexão de WhatsApp não confirmou o envio. Verifique o canal selecionado e tente novamente." });
       }
       await db.insert(messages).values({ tenantId: input.tenantId, conversationId: input.conversationId, authorMembershipId: access.membershipId, direction: "outbound", body: input.body.trim(), channel: "whatsapp", providerMessageId });
-      await db.update(conversations).set({ latestMessagePreview: input.body.trim(), unreadCount: 0, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, input.conversationId));
+      await db.update(conversations).set({ integrationConfigId: integrationId, latestMessagePreview: input.body.trim(), unreadCount: 0, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, input.conversationId));
       return { success: true };
     }),
 

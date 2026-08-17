@@ -308,6 +308,7 @@ export const conversations = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     contactId: int("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    integrationConfigId: int("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
     queue: conversationQueue.notNull().default("ai"),
     assignedMembershipId: int("assigned_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
     agentProfileId: int("agent_profile_id").references(() => agentProfiles.id, { onDelete: "set null" }),
@@ -323,6 +324,7 @@ export const conversations = mysqlTable(
   },
   table => [
     index("conversation_tenant_queue_idx").on(table.tenantId, table.queue, table.updatedAt),
+    index("conversation_tenant_integration_idx").on(table.tenantId, table.integrationConfigId, table.updatedAt),
     index("conversation_assignee_idx").on(table.tenantId, table.assignedMembershipId),
   ]
 );
