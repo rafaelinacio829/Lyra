@@ -8,11 +8,31 @@ async function sendZapiConfig(zapi: typeof integrationConfigs.$inferSelect, phon
   const config = zapi.publicConfig as { instanceId?: string };
   const secrets = JSON.parse(decryptTenantSecret(zapi.secretCiphertext)) as { instanceToken: string; clientToken: string };
   if (!config.instanceId) throw new Error("A integração Z-API não possui instância configurada.");
-  const response = await fetch(`https://api.z-api.io/instances/${encodeURIComponent(config.instanceId)}/token/${encodeURIComponent(secrets.instanceToken)}/send-text`, {
-    method: "POST", headers: { "Client-Token": secrets.clientToken, "Content-Type": "application/json" }, body: JSON.stringify({ phone: phone.replace(/\D/g, ""), message }),
-  });
-  if (!response.ok) throw new Error(`Z-API respondeu ${response.status}`);
-  const payload = (await response.json().catch(() => ({}))) as { messageId?: string; zaapId?: string; id?: string };
+  if (!secrets.instanceToken || !secrets.clientToken) throw new Error("Credenciais Z-API incompletas.");
+  const normalizedPhone = phone.replace(/\D/g, "");
+  if (normalizedPhone.length < 8) throw new Error("Número de WhatsApp inválido.");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let response: Response;
+  try {
+    response = await fetch(`https://api.z-api.io/instances/${encodeURIComponent(config.instanceId)}/token/${encodeURIComponent(secrets.instanceToken)}/send-text`, {
+      method: "POST",
+      headers: { "Client-Token": secrets.clientToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: normalizedPhone, message }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    throw new Error(error instanceof Error && error.name === "AbortError" ? "Tempo excedido ao chamar a Z-API." : "Não foi possível conectar à Z-API.");
+  } finally {
+    clearTimeout(timeout);
+  }
+  const responseText = await response.text();
+  let payload: { messageId?: string; zaapId?: string; id?: string; error?: string; message?: string } = {};
+  try { payload = JSON.parse(responseText) as typeof payload; } catch { /* resposta não JSON */ }
+  if (!response.ok) {
+    const reason = payload.error || payload.message || responseText.slice(0, 240);
+    throw new Error(`Z-API respondeu ${response.status}${reason ? `: ${reason}` : ""}`);
+  }
   return payload.messageId ?? payload.zaapId ?? payload.id ?? null;
 }
 
