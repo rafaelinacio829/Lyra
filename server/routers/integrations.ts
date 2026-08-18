@@ -12,6 +12,7 @@ import { recordTenantAudit } from "../audit";
 import { assertCustomErpBaseUrl, verifyCustomErpConnection } from "../services/customErp";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
+const whatsappChannelPurpose = z.enum(["general", "sales", "support", "billing", "operations", "marketing", "other"]);
 
 function requestOrigin(req: { protocol: string; get: (name: string) => string | undefined; header: (name: string) => string | undefined }) {
   const forwarded = req.header("x-forwarded-proto");
@@ -27,8 +28,8 @@ export const integrationRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [rules] = await db.select({ defaultWhatsAppIntegrationId: tenantOperatingRules.defaultWhatsAppIntegrationId }).from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, input.tenantId)).limit(1);
-    const channels = await db.execute<{ id: number; provider: "zapi" | "meta"; name: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>(
-      `SELECT i.id, i.provider, i.name, i.status, i.last_verified_at AS lastVerifiedAt, i.last_error AS lastError,
+    const channels = await db.execute<{ id: number; provider: "zapi" | "meta"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>(
+      `SELECT i.id, i.provider, i.name, i.channel_identifier AS channelIdentifier, i.channel_purpose AS channelPurpose, i.status, i.last_verified_at AS lastVerifiedAt, i.last_error AS lastError,
         COUNT(c.id) AS totalConversations,
         COALESCE(SUM(CASE WHEN c.queue <> 'resolved' THEN 1 ELSE 0 END), 0) AS pendingConversations,
         ROUND(AVG(CASE WHEN c.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, c.created_at, c.first_response_at) END), 1) AS avgFirstResponseMinutes,
@@ -39,8 +40,8 @@ export const integrationRouter = router({
       GROUP BY i.id, i.provider, i.name, i.status, i.last_verified_at, i.last_error
       ORDER BY CASE WHEN i.status = 'error' THEN 0 WHEN i.status = 'active' THEN 1 ELSE 2 END, i.updated_at DESC`
     );
-    const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta"; name: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
-    return { defaultIntegrationId: rules?.defaultWhatsAppIntegrationId ?? null, channels: rows.map(row => ({ id: Number(row.id), provider: row.provider, name: row.name, status: row.status, lastVerifiedAt: row.lastVerifiedAt, lastError: row.lastError, lastActivityAt: row.lastActivityAt, totalConversations: Number(row.totalConversations || 0), pendingConversations: Number(row.pendingConversations || 0), avgFirstResponseMinutes: row.avgFirstResponseMinutes == null ? null : Number(row.avgFirstResponseMinutes), isDefault: Number(row.id) === rules?.defaultWhatsAppIntegrationId })) };
+    const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
+    return { defaultIntegrationId: rules?.defaultWhatsAppIntegrationId ?? null, channels: rows.map(row => ({ id: Number(row.id), provider: row.provider, name: row.name, channelIdentifier: row.channelIdentifier, channelPurpose: row.channelPurpose || "general", status: row.status, lastVerifiedAt: row.lastVerifiedAt, lastError: row.lastError, lastActivityAt: row.lastActivityAt, totalConversations: Number(row.totalConversations || 0), pendingConversations: Number(row.pendingConversations || 0), avgFirstResponseMinutes: row.avgFirstResponseMinutes == null ? null : Number(row.avgFirstResponseMinutes), isDefault: Number(row.id) === rules?.defaultWhatsAppIntegrationId })) };
   }),
 
   setDefaultWhatsAppChannel: protectedProcedure
@@ -56,19 +57,32 @@ export const integrationRouter = router({
       return { success: true as const, integrationId: channel.id };
     }),
 
+  updateWhatsAppChannelDetails: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive(), channelIdentifier: z.string().trim().min(3).max(120), channelPurpose: whatsappChannelPurpose }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [channel] = await db.select({ id: integrationConfigs.id, provider: integrationConfigs.provider, name: integrationConfigs.name }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId))).limit(1);
+      if (!channel || (channel.provider !== "zapi" && channel.provider !== "meta")) throw new TRPCError({ code: "NOT_FOUND", message: "Canal WhatsApp não encontrado nesta empresa." });
+      await db.update(integrationConfigs).set({ channelIdentifier: input.channelIdentifier, channelPurpose: input.channelPurpose }).where(eq(integrationConfigs.id, channel.id));
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.whatsapp_details_updated", entityType: "integration", entityId: channel.id, metadata: { name: channel.name, channelIdentifier: input.channelIdentifier, channelPurpose: input.channelPurpose } });
+      return { success: true as const };
+    }),
+
   list: protectedProcedure.input(tenantInput).query(async ({ ctx, input }) => {
     await requireTenantAccess(ctx.user.id, input.tenantId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     return db
-      .select({ id: integrationConfigs.id, provider: integrationConfigs.provider, name: integrationConfigs.name, status: integrationConfigs.status, publicConfig: integrationConfigs.publicConfig, secretConfigured: integrationConfigs.secretFingerprint, lastVerifiedAt: integrationConfigs.lastVerifiedAt, lastError: integrationConfigs.lastError, updatedAt: integrationConfigs.updatedAt })
+      .select({ id: integrationConfigs.id, provider: integrationConfigs.provider, name: integrationConfigs.name, channelIdentifier: integrationConfigs.channelIdentifier, channelPurpose: integrationConfigs.channelPurpose, status: integrationConfigs.status, publicConfig: integrationConfigs.publicConfig, secretConfigured: integrationConfigs.secretFingerprint, lastVerifiedAt: integrationConfigs.lastVerifiedAt, lastError: integrationConfigs.lastError, updatedAt: integrationConfigs.updatedAt })
       .from(integrationConfigs)
       .where(eq(integrationConfigs.tenantId, input.tenantId))
       .orderBy(desc(integrationConfigs.updatedAt));
   }),
 
   saveZapi: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().min(2).max(120), instanceId: z.string().min(3).max(120), instanceToken: z.string().min(8).max(500), clientToken: z.string().min(8).max(500) }))
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().min(2).max(120), instanceId: z.string().min(3).max(120), channelIdentifier: z.string().trim().min(3).max(120).optional(), channelPurpose: whatsappChannelPurpose.default("general"), instanceToken: z.string().min(8).max(500), clientToken: z.string().min(8).max(500) }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
       const db = await getDb();
@@ -81,13 +95,15 @@ export const integrationRouter = router({
         tenantId: input.tenantId,
         provider: "zapi",
         name: input.name.trim(),
+        channelIdentifier: input.channelIdentifier?.trim() || input.instanceId.trim(),
+        channelPurpose: input.channelPurpose,
         status: "draft",
         publicConfig: { instanceId: input.instanceId.trim() },
         secretCiphertext: encryptTenantSecret(JSON.stringify(secret)),
         secretFingerprint: fingerprintTenantSecret(input.instanceToken),
         webhookSecretCiphertext: encryptTenantSecret(webhookKey),
       }).onDuplicateKeyUpdate({
-        set: { status: "draft", publicConfig: { instanceId: input.instanceId.trim() }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.instanceToken), webhookSecretCiphertext: encryptTenantSecret(webhookKey), lastError: null },
+        set: { status: "draft", channelIdentifier: input.channelIdentifier?.trim() || input.instanceId.trim(), channelPurpose: input.channelPurpose, publicConfig: { instanceId: input.instanceId.trim() }, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.instanceToken), webhookSecretCiphertext: encryptTenantSecret(webhookKey), lastError: null },
       });
       const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi"), eq(integrationConfigs.name, input.name.trim()))).limit(1);
       if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Configuração Z-API não foi criada." });
@@ -124,7 +140,7 @@ export const integrationRouter = router({
     }),
 
   saveMeta: protectedProcedure
-    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), phoneNumberId: z.string().trim().min(4).max(120), accessToken: z.string().min(20).max(2000), appSecret: z.string().min(16).max(500), graphApiVersion: z.string().regex(/^v\d+\.\d+$/).default("v23.0") }))
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), phoneNumberId: z.string().trim().min(4).max(120), channelIdentifier: z.string().trim().min(3).max(120).optional(), channelPurpose: whatsappChannelPurpose.default("general"), accessToken: z.string().min(20).max(2000), appSecret: z.string().min(16).max(500), graphApiVersion: z.string().regex(/^v\d+\.\d+$/).default("v23.0") }))
     .mutation(async ({ ctx, input }) => {
       await requireTenantAdmin(ctx.user.id, input.tenantId);
       const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
@@ -133,7 +149,7 @@ export const integrationRouter = router({
       const verifyToken = randomBytes(24).toString("base64url");
       const secret = { accessToken: input.accessToken, appSecret: input.appSecret, verifyToken };
       const publicConfig = { phoneNumberId: input.phoneNumberId, graphApiVersion: input.graphApiVersion };
-      await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "meta", name: input.name, status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken) }).onDuplicateKeyUpdate({ set: { status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken), lastError: null } });
+      await db.insert(integrationConfigs).values({ tenantId: input.tenantId, provider: "meta", name: input.name, channelIdentifier: input.channelIdentifier?.trim() || input.phoneNumberId, channelPurpose: input.channelPurpose, status: "draft", publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken) }).onDuplicateKeyUpdate({ set: { status: "draft", channelIdentifier: input.channelIdentifier?.trim() || input.phoneNumberId, channelPurpose: input.channelPurpose, publicConfig, secretCiphertext: encryptTenantSecret(JSON.stringify(secret)), secretFingerprint: fingerprintTenantSecret(input.accessToken), webhookSecretCiphertext: encryptTenantSecret(verifyToken), lastError: null } });
       const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "meta"), eq(integrationConfigs.name, input.name))).limit(1);
       if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Configuração Meta não foi criada." });
       await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.meta_configured", entityType: "integration", entityId: config.id, metadata: { name: input.name, phoneNumberId: input.phoneNumberId } });

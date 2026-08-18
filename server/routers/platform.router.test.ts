@@ -18,6 +18,10 @@ describe("procedures de plataforma", () => {
     await expect(platformRouter.createCaller(userContext).overview()).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(getDb).not.toHaveBeenCalled();
   });
+  it("nega a emissão de código de recuperação a quem não é super-admin", async () => {
+    await expect(platformRouter.createCaller(userContext).issueAccountRecoveryCode({ email: "cliente@acme.test" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(getDb).not.toHaveBeenCalled();
+  });
   it("permite a procedure ao super-admin", async () => {
     getDb.mockResolvedValue({
       select: vi.fn(() => ({
@@ -35,5 +39,20 @@ describe("procedures de plataforma", () => {
       select,
     });
     await expect(platformRouter.createCaller(adminContext).overview()).resolves.toMatchObject({ customers: [expect.objectContaining(rows[0])], metrics: { totalCustomers: 1, activeCustomers: 1, mrrCents: 29900 }, health: { attention: 1 } });
+  });
+  it("emite um código temporário sem persistir o segredo em texto puro", async () => {
+    const values = vi.fn().mockResolvedValue(undefined);
+    const update = vi.fn(() => ({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) }));
+    getDb.mockResolvedValue({
+      select: vi.fn(() => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: 18, name: "Cliente", email: "cliente@acme.test" }]) }) }) })),
+      update,
+      insert: vi.fn(() => ({ values })),
+    });
+    const result = await platformRouter.createCaller(adminContext).issueAccountRecoveryCode({ email: "CLIENTE@acme.test" });
+    expect(result).toMatchObject({ success: true, email: "cliente@acme.test" });
+    expect(result.recoveryCode).toMatch(/^[A-F0-9]{4}(?:-[A-F0-9]{4}){4}$/);
+    expect(values.mock.calls[0]?.[0]).toMatchObject({ userId: 18, createdByUserId: adminContext.user.id });
+    expect(values.mock.calls[0]?.[0]?.codeHash).not.toBe(result.recoveryCode);
+    expect(update).toHaveBeenCalled();
   });
 });

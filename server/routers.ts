@@ -1,7 +1,7 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { auditLogs, authSessions, users } from "../drizzle/schema";
+import { accountRecoveryCodes, auditLogs, authSessions, users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -18,7 +18,7 @@ import { erpRouter } from "./routers/erp";
 import { teamRouter } from "./routers/team";
 import { tenantRouter } from "./routers/tenants";
 import { operatingRulesRouter } from "./routers/operatingRules";
-import { createLocalOpenId, createLocalSession, hashPassword, normalizeEmail, revokeLocalSession, sessionTokenHashFromRequest, verifyPassword } from "./localAuth";
+import { createLocalOpenId, createLocalSession, hashPassword, normalizeEmail, normalizeRecoveryCode, revokeLocalSession, sessionTokenHashFromRequest, tokenHash, verifyPassword } from "./localAuth";
 
 const passwordSchema = z.string().min(12, "Use uma senha com ao menos 12 caracteres.").max(128);
 function publicUser(user: NonNullable<import("./_core/context").TrpcContext["user"]>) { const { passwordHash: _passwordHash, passwordUpdatedAt: _passwordUpdatedAt, ...safe } = user; return safe; }
@@ -43,6 +43,13 @@ export const appRouter = router({
       const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
       if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw new Error("E-mail ou senha inválidos.");
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id)); await setSessionCookie(ctx, user.id); return { success: true as const };
+    }),
+    resetPasswordWithRecoveryCode: publicProcedure.input(z.object({ email: z.string().email(), recoveryCode: z.string().trim().min(8).max(64), newPassword: passwordSchema })).mutation(async ({ input }) => {
+      const db = await getDb(); if (!db) throw new Error("Banco de dados indisponível."); const email = normalizeEmail(input.email); const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      const invalid = () => { throw new Error("Código de recuperação inválido ou expirado."); };
+      if (!user) invalid(); const now = new Date(); const [code] = await db.select({ id: accountRecoveryCodes.id }).from(accountRecoveryCodes).where(and(eq(accountRecoveryCodes.userId, user!.id), eq(accountRecoveryCodes.codeHash, tokenHash(normalizeRecoveryCode(input.recoveryCode))), isNull(accountRecoveryCodes.usedAt), isNull(accountRecoveryCodes.revokedAt), gt(accountRecoveryCodes.expiresAt, now))).limit(1);
+      if (!code) invalid(); await db.update(accountRecoveryCodes).set({ usedAt: now }).where(and(eq(accountRecoveryCodes.id, code!.id), isNull(accountRecoveryCodes.usedAt), isNull(accountRecoveryCodes.revokedAt)));
+      await db.update(users).set({ passwordHash: await hashPassword(input.newPassword), passwordUpdatedAt: now }).where(eq(users.id, user!.id)); await db.update(authSessions).set({ revokedAt: now }).where(and(eq(authSessions.userId, user!.id), isNull(authSessions.revokedAt))); await recordAccountAudit(user!.id, "account.password_recovered", { method: "admin_recovery_code" }); return { success: true as const };
     }),
     sessions: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb(); if (!db) throw new Error("Banco de dados indisponível."); const currentTokenHash = sessionTokenHashFromRequest(ctx.req);

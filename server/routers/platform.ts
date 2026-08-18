@@ -1,8 +1,10 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { capacityAddons, integrationConfigs, plans, subscriptions, tenants, usageCounters } from "../../drizzle/schema";
+import { accountRecoveryCodes, auditLogs, capacityAddons, integrationConfigs, plans, subscriptions, tenants, usageCounters, users } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { createRecoveryCode, normalizeEmail, normalizeRecoveryCode, tokenHash } from "../localAuth";
 import { platformAdminProcedure, router } from "../_core/trpc";
 import { scoreCustomerHealth, summarizePlatformCustomers } from "../platformMetrics";
 import { capacityAddonCatalog, type CapacityAddonType } from "../billing/addons";
@@ -30,6 +32,14 @@ export const platformRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     return db.select({ id: integrationConfigs.id, tenantId: integrationConfigs.tenantId, tenantName: tenants.name, provider: integrationConfigs.provider, name: integrationConfigs.name, lastError: integrationConfigs.lastError, updatedAt: integrationConfigs.updatedAt }).from(integrationConfigs).innerJoin(tenants, eq(integrationConfigs.tenantId, tenants.id)).where(eq(integrationConfigs.status, "error")).orderBy(desc(integrationConfigs.updatedAt)).limit(20);
+  }),
+  issueAccountRecoveryCode: platformAdminProcedure.input(z.object({ email: z.string().email() })).mutation(async ({ ctx, input }) => {
+    const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." }); const email = normalizeEmail(input.email); const [user] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, email)).limit(1);
+    if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Conta não encontrada." }); const now = new Date(); const expiresAt = new Date(now.getTime() + 30 * 60 * 1000); const recoveryCode = createRecoveryCode();
+    await db.update(accountRecoveryCodes).set({ revokedAt: now }).where(and(eq(accountRecoveryCodes.userId, user.id), isNull(accountRecoveryCodes.usedAt), isNull(accountRecoveryCodes.revokedAt)));
+    await db.insert(accountRecoveryCodes).values({ id: randomUUID(), userId: user.id, codeHash: tokenHash(normalizeRecoveryCode(recoveryCode)), createdByUserId: ctx.user.id, expiresAt });
+    await db.insert(auditLogs).values({ tenantId: null, actorUserId: ctx.user.id, action: "platform.account_recovery_issued", entityType: "user_account", entityId: String(user.id), metadata: { recipientEmail: user.email, expiresAt: expiresAt.toISOString() } });
+    return { success: true as const, name: user.name, email: user.email, recoveryCode, expiresAt };
   }),
   setTenantStatus: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), status: z.enum(["active", "suspended"]) })).mutation(async ({ input }) => {
     const db = await getDb();

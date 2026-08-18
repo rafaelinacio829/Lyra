@@ -57,6 +57,21 @@ export const authSessions = mysqlTable(
   table => [index("auth_session_user_idx").on(table.userId, table.expiresAt)]
 );
 
+export const accountRecoveryCodes = mysqlTable(
+  "account_recovery_codes",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    codeHash: varchar("code_hash", { length: 128 }).notNull().unique(),
+    createdByUserId: int("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => [index("account_recovery_user_idx").on(table.userId, table.expiresAt)]
+);
+
 export const plans = mysqlTable("plans", {
   id: int("id").autoincrement().primaryKey(),
   code: varchar("code", { length: 40 }).notNull().unique(),
@@ -271,6 +286,8 @@ export const integrationConfigs = mysqlTable(
     tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     provider: integrationProvider.notNull(),
     name: varchar("name", { length: 120 }).notNull(),
+    channelIdentifier: varchar("channel_identifier", { length: 120 }),
+    channelPurpose: varchar("channel_purpose", { length: 40 }).notNull().default("general"),
     status: integrationStatus.notNull().default("draft"),
     publicConfig: json("public_config"),
     secretCiphertext: text("secret_ciphertext"),

@@ -14,6 +14,8 @@ export function normalizeEmail(email: string) { return email.trim().toLocaleLowe
 export function createLocalOpenId() { return `local_${randomUUID()}`; }
 export function createSessionToken() { return randomBytes(48).toString("base64url"); }
 export function tokenHash(token: string) { return createHash("sha256").update(token).digest("hex"); }
+export function createRecoveryCode() { return randomBytes(10).toString("hex").toUpperCase().match(/.{1,4}/g)?.join("-") ?? randomUUID().slice(0, 12).toUpperCase(); }
+export function normalizeRecoveryCode(code: string) { return code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 export function sessionTokenHashFromRequest(req: Request) { const token = parseCookies(req.headers.cookie ?? "")[COOKIE_NAME]; return token ? tokenHash(token) : null; }
 
 export async function hashPassword(password: string) {
