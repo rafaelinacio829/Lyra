@@ -112,6 +112,7 @@
 - [x] Implementar fila persistida e ação operacional de escalonamento para conversas humanas sem responsável.
 - [x] Validar SLA, roteamento e escalonamento com dados persistidos do tenant em teste integrado reversível.
 - [ ] Preparar conformidade mobile para publicação futura, incluindo domínio próprio, notificações, conta de revisão e requisitos das lojas.
+- [x] Completar o manifesto, os atalhos, o cache seguro do shell PWA e o checklist técnico-documental para a publicação mobile futura.
 - [x] Implementar alteração de senha, listagem e revogação de sessões, trilha de auditoria e solicitação autenticada de exclusão de conta.
 - [x] Exibir saúde operacional por tenant, com estado de conexões, canais verificados, falhas e sinais acionáveis no dashboard.
 - [x] Adicionar histórico seguro de governança dos agentes, com auditoria de criação, configuração, testes, alteração de perfil e ativação.

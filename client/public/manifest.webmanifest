@@ -2,11 +2,20 @@
   "name": "Flow One Omnichannel",
   "short_name": "Flow One",
   "description": "Operação omnichannel do Flow One no celular.",
+  "id": "/app",
   "start_url": "/app",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#f4f8f5",
   "theme_color": "#1d3844",
   "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "communication"],
+  "shortcuts": [
+    { "name": "Conversas", "short_name": "Conversas", "url": "/app/conversations", "description": "Abrir a fila de atendimentos." },
+    { "name": "Canais WhatsApp", "short_name": "Canais", "url": "/app/whatsapp-channels", "description": "Acompanhar os canais conectados." }
+  ],
   "icons": [
     { "src": "/manus-storage/flow-one-app-icon_af37f7d0.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
