@@ -304,6 +304,29 @@ export const integrationConfigs = mysqlTable(
   ]
 );
 
+export const operationalIncidents = mysqlTable(
+  "operational_incidents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    tenantId: int("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    integrationConfigId: int("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
+    dedupeKey: varchar("dedupe_key", { length: 180 }).notNull().unique(),
+    source: varchar("source", { length: 80 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull().default("warning"),
+    summary: varchar("summary", { length: 240 }).notNull(),
+    detail: text("detail"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    occurrences: int("occurrences").notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedByUserId: int("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("operational_incident_tenant_idx").on(table.tenantId, table.status, table.lastSeenAt), index("operational_incident_status_idx").on(table.status, table.lastSeenAt)]
+);
+
 export const contacts = mysqlTable(
   "contacts",
   {

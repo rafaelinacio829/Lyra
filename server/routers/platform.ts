@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { accountRecoveryCodes, auditLogs, capacityAddons, integrationConfigs, plans, subscriptions, tenants, usageCounters, users } from "../../drizzle/schema";
+import { accountRecoveryCodes, auditLogs, capacityAddons, integrationConfigs, operationalIncidents as incidentRecords, plans, subscriptions, tenants, usageCounters, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { createRecoveryCode, normalizeEmail, normalizeRecoveryCode, tokenHash } from "../localAuth";
 import { platformAdminProcedure, router } from "../_core/trpc";
@@ -32,6 +32,20 @@ export const platformRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     return db.select({ id: integrationConfigs.id, tenantId: integrationConfigs.tenantId, tenantName: tenants.name, provider: integrationConfigs.provider, name: integrationConfigs.name, lastError: integrationConfigs.lastError, updatedAt: integrationConfigs.updatedAt }).from(integrationConfigs).innerJoin(tenants, eq(integrationConfigs.tenantId, tenants.id)).where(eq(integrationConfigs.status, "error")).orderBy(desc(integrationConfigs.updatedAt)).limit(20);
+  }),
+  incidentTrail: platformAdminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    return db.select({ id: incidentRecords.id, tenantId: incidentRecords.tenantId, tenantName: tenants.name, integrationName: integrationConfigs.name, source: incidentRecords.source, severity: incidentRecords.severity, summary: incidentRecords.summary, detail: incidentRecords.detail, status: incidentRecords.status, occurrences: incidentRecords.occurrences, firstSeenAt: incidentRecords.firstSeenAt, lastSeenAt: incidentRecords.lastSeenAt, resolvedAt: incidentRecords.resolvedAt }).from(incidentRecords).leftJoin(tenants, eq(incidentRecords.tenantId, tenants.id)).leftJoin(integrationConfigs, eq(incidentRecords.integrationConfigId, integrationConfigs.id)).orderBy(desc(incidentRecords.lastSeenAt)).limit(50);
+  }),
+  resolveOperationalIncident: platformAdminProcedure.input(z.object({ incidentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    const [incident] = await db.select({ id: incidentRecords.id, status: incidentRecords.status, tenantId: incidentRecords.tenantId, summary: incidentRecords.summary }).from(incidentRecords).where(eq(incidentRecords.id, input.incidentId)).limit(1);
+    if (!incident) throw new TRPCError({ code: "NOT_FOUND", message: "Incidente não encontrado." });
+    if (incident.status !== "resolved") await db.update(incidentRecords).set({ status: "resolved", resolvedAt: new Date(), resolvedByUserId: ctx.user.id }).where(eq(incidentRecords.id, incident.id));
+    await db.insert(auditLogs).values({ tenantId: incident.tenantId, actorUserId: ctx.user.id, action: "platform.operational_incident_resolved", entityType: "operational_incident", entityId: String(incident.id), metadata: { summary: incident.summary } });
+    return { success: true as const };
   }),
   issueAccountRecoveryCode: platformAdminProcedure.input(z.object({ email: z.string().email() })).mutation(async ({ ctx, input }) => {
     const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." }); const email = normalizeEmail(input.email); const [user] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, email)).limit(1);

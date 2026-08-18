@@ -102,7 +102,7 @@
 - [x] Corrigir o ordenamento SQL da produtividade no relatório por tenant e cobrir o caminho com teste integrado transacional.
 - [x] Validar explicitamente no teste transacional os indicadores de reabertura retornados pelo relatório a partir de `reopenedAt` persistido.
 - [x] Definir um fluxo completo de recuperação de conta, exclusão de conta e privacidade para clientes do SaaS.
-- [ ] Adicionar observabilidade operacional de produção com alertas de erros, disponibilidade de integrações e trilha de incidentes.
+- [x] Adicionar observabilidade operacional de produção com alertas de erros, disponibilidade de integrações e trilha de incidentes.
 - [x] Evoluir o onboarding guiado de tenant com checklist de ativação de canal, agente, equipe e primeira conversa.
 - [x] Implementar automações de atendimento configuráveis por tenant com regras de horário, SLA, roteamento e escalonamento humano.
 - [x] Adicionar testes integrados para leitura, atualização e aplicação das regras operacionais no runtime de atendimento.
@@ -134,3 +134,4 @@
 - [x] Implementar recuperação de senha por código temporário emitido pelo super-admin, com expiração, uso único, revogação de sessões e trilha de auditoria.
 - [x] Exibir explicitamente o número ou identificador operacional de cada canal na central de Canais WhatsApp.
 - [x] Adicionar e persistir uma finalidade operacional por canal, como vendas, suporte ou cobrança, e mostrá-la na central com regressões cobertas.
+- [x] Persistir incidentes operacionais sem segredos, com severidade, deduplicação, resolução e visualização exclusiva de super-admin.

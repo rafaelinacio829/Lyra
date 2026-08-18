@@ -55,4 +55,18 @@ describe("procedures de plataforma", () => {
     expect(values.mock.calls[0]?.[0]?.codeHash).not.toBe(result.recoveryCode);
     expect(update).toHaveBeenCalled();
   });
+  it("retorna a trilha de incidentes apenas para o super-admin", async () => {
+    const rows = [{ id: 9, tenantId: 2, tenantName: "Acme", integrationName: "WhatsApp", source: "meta.connection_test", severity: "critical", summary: "Falha na Meta", detail: "Meta respondeu 401", status: "open", occurrences: 2, firstSeenAt: new Date(), lastSeenAt: new Date(), resolvedAt: null }];
+    getDb.mockResolvedValue({ select: vi.fn(() => ({ from: () => ({ leftJoin: () => ({ leftJoin: () => ({ orderBy: () => ({ limit: () => Promise.resolve(rows) }) }) }) }) })) });
+    await expect(platformRouter.createCaller(adminContext).incidentTrail()).resolves.toEqual(rows);
+    await expect(platformRouter.createCaller(userContext).incidentTrail()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("resolve um incidente e registra a ação administrativa", async () => {
+    const auditValues = vi.fn().mockResolvedValue(undefined);
+    const update = vi.fn(() => ({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) }));
+    getDb.mockResolvedValue({ select: vi.fn(() => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: 9, status: "open", tenantId: 2, summary: "Falha na Meta" }]) }) }) })), update, insert: vi.fn(() => ({ values: auditValues })) });
+    await expect(platformRouter.createCaller(adminContext).resolveOperationalIncident({ incidentId: 9 })).resolves.toEqual({ success: true });
+    expect(update).toHaveBeenCalled();
+    expect(auditValues).toHaveBeenCalledWith(expect.objectContaining({ action: "platform.operational_incident_resolved", actorUserId: adminContext.user.id }));
+  });
 });

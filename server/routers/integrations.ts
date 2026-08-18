@@ -10,6 +10,7 @@ import { requireTenantAccess, requireTenantAdmin } from "../tenantAccess";
 import { assertTenantQuota } from "../planLimits";
 import { recordTenantAudit } from "../audit";
 import { assertCustomErpBaseUrl, verifyCustomErpConnection } from "../services/customErp";
+import { reportOperationalIncident } from "../operationalIncidents";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
 const whatsappChannelPurpose = z.enum(["general", "sales", "support", "billing", "operations", "marketing", "other"]);
@@ -135,6 +136,7 @@ export const integrationRouter = router({
       } catch (error) {
         const message = error instanceof Error ? error.message.slice(0, 500) : "Falha ao configurar webhook Z-API.";
         await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id));
+        await reportOperationalIncident({ tenantId: input.tenantId, integrationConfigId: config.id, source: "zapi.webhook_activation", severity: "critical", summary: "Falha ao ativar webhook Z-API", error });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Não foi possível ativar o webhook Z-API. Revise a instância e as credenciais." });
       }
     }),
@@ -166,7 +168,7 @@ export const integrationRouter = router({
       const publicConfig = config.publicConfig as { phoneNumberId?: string; graphApiVersion?: string }; const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { accessToken?: string };
       if (!publicConfig.phoneNumberId || !secrets.accessToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A integração Meta não possui identificador ou token configurado." });
       try { const response = await fetch(`https://graph.facebook.com/${publicConfig.graphApiVersion || "v23.0"}/${encodeURIComponent(publicConfig.phoneNumberId)}`, { headers: { Authorization: `Bearer ${secrets.accessToken}` }, signal: AbortSignal.timeout(10_000) }); if (!response.ok) throw new Error(`Meta respondeu ${response.status}`); await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date(), lastError: null }).where(eq(integrationConfigs.id, config.id)); return { success: true }; }
-      catch { const message = "A Meta não aceitou a conexão. Revise o Phone Number ID, o token de sistema, permissões e versão da Graph API."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
+      catch (error) { const message = "A Meta não aceitou a conexão. Revise o Phone Number ID, o token de sistema, permissões e versão da Graph API."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); await reportOperationalIncident({ tenantId: input.tenantId, integrationConfigId: config.id, source: "meta.connection_test", severity: "critical", summary: "Falha na validação da WhatsApp Cloud API", error }); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
     }),
 
   saveCustomErp: protectedProcedure
@@ -194,7 +196,7 @@ export const integrationRouter = router({
       const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "erp_custom"))).limit(1);
       if (!config) throw new TRPCError({ code: "NOT_FOUND", message: "Integração de ERP personalizada não encontrada." });
       try { await verifyCustomErpConnection(input.tenantId, config.id); await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date(), lastError: null }).where(eq(integrationConfigs.id, config.id)); return { success: true }; }
-      catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "O ERP não aceitou a conexão."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
+      catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "O ERP não aceitou a conexão."; await db.update(integrationConfigs).set({ status: "error", lastError: message }).where(eq(integrationConfigs.id, config.id)); await reportOperationalIncident({ tenantId: input.tenantId, integrationConfigId: config.id, source: "erp.connection_test", severity: "critical", summary: "Falha na validação do ERP personalizado", error }); throw new TRPCError({ code: "BAD_GATEWAY", message }); }
     }),
 });
 
