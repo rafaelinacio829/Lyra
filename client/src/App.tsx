@@ -21,6 +21,7 @@ import WorkspaceHome from "./pages/WorkspaceHome";
 import CustomerLogin from "./pages/CustomerLogin";
 import AccountSecurityPage from "./pages/AccountSecurityPage";
 import OperatingRulesPage from "./pages/OperatingRulesPage";
+import WhatsAppChannelsPage from "./pages/WhatsAppChannelsPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -40,6 +41,7 @@ function Router() {
       <Route path={"/app/metrics"}><DashboardLayout><MetricsPage /></DashboardLayout></Route>
       <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>
       <Route path={"/app/integrations"}><DashboardLayout><IntegrationsPage /></DashboardLayout></Route>
+      <Route path={"/app/whatsapp-channels"}><DashboardLayout><WhatsAppChannelsPage /></DashboardLayout></Route>
       <Route path={"/app/account"}><DashboardLayout><AccountSecurityPage /></DashboardLayout></Route>
       <Route path={"/app/operations"}><DashboardLayout><OperatingRulesPage /></DashboardLayout></Route>
       <Route path={"/404"} component={NotFound} />

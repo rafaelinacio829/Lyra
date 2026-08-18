@@ -127,3 +127,7 @@
 - [x] Exibir a conexão WhatsApp de origem na lista e no detalhe das conversas.
 - [x] Adicionar seleção explícita de conexão WhatsApp no envio de mensagens pelo detalhe da conversa.
 - [x] Cobrir a experiência de interface multicanal em testes de regressão do frontend.
+- [x] Criar central de Canais WhatsApp com visão por número, status, provedor e finalidade operacional.
+- [x] Adicionar métricas por conexão de WhatsApp, incluindo volume, pendências, primeira resposta e falhas recentes.
+- [x] Permitir que o administrador defina uma conexão WhatsApp padrão por tenant e que a equipe visualize essa regra.
+- [x] Adicionar filtros, ações operacionais e testes de regressão para a central de Canais WhatsApp.

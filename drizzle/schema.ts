@@ -229,6 +229,7 @@ export const tenantOperatingRules = mysqlTable(
     businessHours: json("business_hours"),
     firstResponseSlaMinutes: int("first_response_sla_minutes").notNull().default(20),
     inboundRouting: varchar("inbound_routing", { length: 24 }).notNull().default("ai_first"),
+    defaultWhatsAppIntegrationId: int("default_whatsapp_integration_id"),
     handoffOutsideBusinessHours: boolean("handoff_outside_business_hours").notNull().default(false),
     autoEscalateUnassigned: boolean("auto_escalate_unassigned").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Bot, ChartNoAxesCombined, ContactRound, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Bot, ChartNoAxesCombined, ContactRound, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquareText, PanelLeft, Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -31,6 +31,7 @@ import { PwaInstallBanner } from "./PwaInstallBanner";
 const menuItems = [
   { icon: LayoutDashboard, label: "Visão geral", path: "/app" },
   { icon: MessageSquareText, label: "Conversas", path: "/app/conversations" },
+  { icon: Smartphone, label: "Canais WhatsApp", path: "/app/whatsapp-channels" },
   { icon: ContactRound, label: "Contatos", path: "/app/contacts" },
   { icon: FileText, label: "ERP e documentos", path: "/app/erp" },
   { icon: Bot, label: "Agentes", path: "/app/agents" },

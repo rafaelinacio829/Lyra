@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { integrationConfigs } from "../../drizzle/schema";
+import { conversations, integrationConfigs, tenantOperatingRules } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { decryptTenantSecret, encryptTenantSecret, fingerprintTenantSecret } from "../tenantSecrets";
@@ -22,6 +22,40 @@ function requestOrigin(req: { protocol: string; get: (name: string) => string | 
 }
 
 export const integrationRouter = router({
+  whatsappChannels: protectedProcedure.input(tenantInput).query(async ({ ctx, input }) => {
+    await requireTenantAccess(ctx.user.id, input.tenantId);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    const [rules] = await db.select({ defaultWhatsAppIntegrationId: tenantOperatingRules.defaultWhatsAppIntegrationId }).from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, input.tenantId)).limit(1);
+    const channels = await db.execute<{ id: number; provider: "zapi" | "meta"; name: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>(
+      `SELECT i.id, i.provider, i.name, i.status, i.last_verified_at AS lastVerifiedAt, i.last_error AS lastError,
+        COUNT(c.id) AS totalConversations,
+        COALESCE(SUM(CASE WHEN c.queue <> 'resolved' THEN 1 ELSE 0 END), 0) AS pendingConversations,
+        ROUND(AVG(CASE WHEN c.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, c.created_at, c.first_response_at) END), 1) AS avgFirstResponseMinutes,
+        MAX(c.updated_at) AS lastActivityAt
+      FROM integration_configs i
+      LEFT JOIN conversations c ON c.integration_config_id = i.id AND c.tenant_id = i.tenant_id
+      WHERE i.tenant_id = ${input.tenantId} AND i.provider IN ('zapi', 'meta')
+      GROUP BY i.id, i.provider, i.name, i.status, i.last_verified_at, i.last_error
+      ORDER BY CASE WHEN i.status = 'error' THEN 0 WHEN i.status = 'active' THEN 1 ELSE 2 END, i.updated_at DESC`
+    );
+    const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta"; name: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
+    return { defaultIntegrationId: rules?.defaultWhatsAppIntegrationId ?? null, channels: rows.map(row => ({ id: Number(row.id), provider: row.provider, name: row.name, status: row.status, lastVerifiedAt: row.lastVerifiedAt, lastError: row.lastError, lastActivityAt: row.lastActivityAt, totalConversations: Number(row.totalConversations || 0), pendingConversations: Number(row.pendingConversations || 0), avgFirstResponseMinutes: row.avgFirstResponseMinutes == null ? null : Number(row.avgFirstResponseMinutes), isDefault: Number(row.id) === rules?.defaultWhatsAppIntegrationId })) };
+  }),
+
+  setDefaultWhatsAppChannel: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [channel] = await db.select({ id: integrationConfigs.id, name: integrationConfigs.name, provider: integrationConfigs.provider }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.status, "active"))).limit(1);
+      if (!channel || (channel.provider !== "zapi" && channel.provider !== "meta")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão WhatsApp ativa desta empresa." });
+      await db.insert(tenantOperatingRules).values({ tenantId: input.tenantId, defaultWhatsAppIntegrationId: channel.id }).onDuplicateKeyUpdate({ set: { defaultWhatsAppIntegrationId: channel.id } });
+      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.whatsapp_default_changed", entityType: "integration", entityId: channel.id, metadata: { name: channel.name, provider: channel.provider } });
+      return { success: true as const, integrationId: channel.id };
+    }),
+
   list: protectedProcedure.input(tenantInput).query(async ({ ctx, input }) => {
     await requireTenantAccess(ctx.user.id, input.tenantId);
     const db = await getDb();

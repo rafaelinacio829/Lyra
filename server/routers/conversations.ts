@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, like, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contacts, conversationEscalations, conversations, integrationConfigs, messages, tenantMemberships, users } from "../../drizzle/schema";
+import { contacts, conversationEscalations, conversations, integrationConfigs, messages, tenantMemberships, tenantOperatingRules, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireTenantAccess } from "../tenantAccess";
@@ -133,7 +133,11 @@ export const conversationRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ative uma integração Z-API válida para enviar mensagens pelo WhatsApp." });
       }
       let providerMessageId: string | null = null;
-      const integrationId = input.integrationId ?? conversation.integrationConfigId;
+      let integrationId = input.integrationId ?? conversation.integrationConfigId;
+      if (!integrationId) {
+        const [rules] = await db.select({ defaultWhatsAppIntegrationId: tenantOperatingRules.defaultWhatsAppIntegrationId }).from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, input.tenantId)).limit(1);
+        integrationId = rules?.defaultWhatsAppIntegrationId ?? null;
+      }
       if (!integrationId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão de WhatsApp ativa para enviar esta mensagem." });
       try {
         providerMessageId = await sendWhatsAppText(input.tenantId, integrationId, contact.phone, input.body.trim());

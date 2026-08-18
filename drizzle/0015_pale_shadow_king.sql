@@ -1,0 +1,1 @@
+ALTER TABLE `tenant_operating_rules` ADD `default_whatsapp_integration_id` int;
