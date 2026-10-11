@@ -22,12 +22,14 @@ import CustomerLogin from "./pages/CustomerLogin";
 import AccountSecurityPage from "./pages/AccountSecurityPage";
 import OperatingRulesPage from "./pages/OperatingRulesPage";
 import WhatsAppChannelsPage from "./pages/WhatsAppChannelsPage";
+import PdiAssistantPage from "./pages/PdiAssistantPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={MarketingHome} />
+      <Route path={"/pdi"} component={PdiAssistantPage} />
       <Route path={"/pricing"} component={PricingPage} />
       <Route path={"/login"} component={CustomerLogin} />
       <Route path={"/onboarding"} component={OnboardingTenant} />
