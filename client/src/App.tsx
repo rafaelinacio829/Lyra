@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Router as WouterRouter, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -27,29 +27,31 @@ import PdiAssistantPage from "./pages/PdiAssistantPage";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      <Route path={"/"} component={MarketingHome} />
-      <Route path={"/pdi"} component={PdiAssistantPage} />
-      <Route path={"/pricing"} component={PricingPage} />
-      <Route path={"/login"} component={CustomerLogin} />
-      <Route path={"/onboarding"} component={OnboardingTenant} />
-      <Route path={"/app"}><DashboardLayout><WorkspaceHome /></DashboardLayout></Route>
-      <Route path={"/app/agents"}><DashboardLayout><AgentsPage /></DashboardLayout></Route>
-      <Route path={"/app/conversations"}><DashboardLayout><ConversationsPage /></DashboardLayout></Route>
-      <Route path={"/app/contacts"}><DashboardLayout><ContactsPage /></DashboardLayout></Route>
-      <Route path={"/app/platform"}><DashboardLayout><PlatformPage /></DashboardLayout></Route>
-      <Route path={"/app/erp"}><DashboardLayout><ErpPage /></DashboardLayout></Route>
-      <Route path={"/app/team"}><DashboardLayout><TeamPage /></DashboardLayout></Route>
-      <Route path={"/app/metrics"}><DashboardLayout><MetricsPage /></DashboardLayout></Route>
-      <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>
-      <Route path={"/app/integrations"}><DashboardLayout><IntegrationsPage /></DashboardLayout></Route>
-      <Route path={"/app/whatsapp-channels"}><DashboardLayout><WhatsAppChannelsPage /></DashboardLayout></Route>
-      <Route path={"/app/account"}><DashboardLayout><AccountSecurityPage /></DashboardLayout></Route>
-      <Route path={"/app/operations"}><DashboardLayout><OperatingRulesPage /></DashboardLayout></Route>
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <WouterRouter base={import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <Switch>
+        <Route path={"/"} component={MarketingHome} />
+        <Route path={"/pdi"} component={PdiAssistantPage} />
+        <Route path={"/pricing"} component={PricingPage} />
+        <Route path={"/login"} component={CustomerLogin} />
+        <Route path={"/onboarding"} component={OnboardingTenant} />
+        <Route path={"/app"}><DashboardLayout><WorkspaceHome /></DashboardLayout></Route>
+        <Route path={"/app/agents"}><DashboardLayout><AgentsPage /></DashboardLayout></Route>
+        <Route path={"/app/conversations"}><DashboardLayout><ConversationsPage /></DashboardLayout></Route>
+        <Route path={"/app/contacts"}><DashboardLayout><ContactsPage /></DashboardLayout></Route>
+        <Route path={"/app/platform"}><DashboardLayout><PlatformPage /></DashboardLayout></Route>
+        <Route path={"/app/erp"}><DashboardLayout><ErpPage /></DashboardLayout></Route>
+        <Route path={"/app/team"}><DashboardLayout><TeamPage /></DashboardLayout></Route>
+        <Route path={"/app/metrics"}><DashboardLayout><MetricsPage /></DashboardLayout></Route>
+        <Route path={"/app/billing"}><DashboardLayout><BillingPage /></DashboardLayout></Route>
+        <Route path={"/app/integrations"}><DashboardLayout><IntegrationsPage /></DashboardLayout></Route>
+        <Route path={"/app/whatsapp-channels"}><DashboardLayout><WhatsAppChannelsPage /></DashboardLayout></Route>
+        <Route path={"/app/account"}><DashboardLayout><AccountSecurityPage /></DashboardLayout></Route>
+        <Route path={"/app/operations"}><DashboardLayout><OperatingRulesPage /></DashboardLayout></Route>
+        <Route path={"/404"} component={NotFound} />
+        {/* Final fallback route */}
+        <Route component={NotFound} />
+      </Switch>
+    </WouterRouter>
   );
 }
 
