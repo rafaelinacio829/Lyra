@@ -19,6 +19,7 @@ import { teamRouter } from "./routers/team";
 import { tenantRouter } from "./routers/tenants";
 import { operatingRulesRouter } from "./routers/operatingRules";
 import { createLocalOpenId, createLocalSession, hashPassword, normalizeEmail, normalizeRecoveryCode, revokeLocalSession, sessionTokenHashFromRequest, tokenHash, verifyPassword } from "./localAuth";
+import { ENV } from "./_core/env";
 
 const passwordSchema = z.string().min(12, "Use uma senha com ao menos 12 caracteres.").max(128);
 function publicUser(user: NonNullable<import("./_core/context").TrpcContext["user"]>) { const { passwordHash: _passwordHash, passwordUpdatedAt: _passwordUpdatedAt, ...safe } = user; return safe; }
@@ -80,9 +81,17 @@ export const appRouter = router({
       const configuredCode = process.env.LOCAL_AUTH_BOOTSTRAP_CODE;
       if (!configuredCode || input.activationCode !== configuredCode) throw new Error("Código de ativação inválido.");
       const db = await getDb(); if (!db) throw new Error("Banco de dados indisponível."); const email = normalizeEmail(input.email);
-      const [user] = await db.select().from(users).where(and(eq(users.email, email), eq(users.role, "admin"))).limit(1);
-      if (!user) throw new Error("Nenhum administrador existente foi encontrado com este e-mail.");
-      await db.update(users).set({ passwordHash: await hashPassword(input.password), passwordUpdatedAt: new Date(), loginMethod: "password", lastSignedIn: new Date() }).where(eq(users.id, user.id)); await setSessionCookie(ctx, user.id); return { success: true as const };
+      if (!ENV.ownerEmail || email !== normalizeEmail(ENV.ownerEmail)) throw new Error("Este e-mail não está configurado como administrador inicial.");
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      const now = new Date();
+      const passwordHash = await hashPassword(input.password);
+      let user = existingUser;
+      if (!user) {
+        [user] = await db.insert(users).values({ openId: createLocalOpenId(), name: process.env.OWNER_NAME?.trim() || "Administrador", email, loginMethod: "password", role: "admin", passwordHash, passwordUpdatedAt: now, lastSignedIn: now }).returning();
+      } else {
+        [user] = await db.update(users).set({ passwordHash, passwordUpdatedAt: now, loginMethod: "password", role: "admin", lastSignedIn: now }).where(eq(users.id, user.id)).returning();
+      }
+      await setSessionCookie(ctx, user.id); return { success: true as const };
     }),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       await revokeLocalSession(ctx.req);
