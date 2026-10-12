@@ -49,17 +49,47 @@ async function sendMetaConfig(meta: typeof integrationConfigs.$inferSelect, phon
   return payload.messages?.[0]?.id ?? null;
 }
 
+function normalizeWhatsAppNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith("55")) {
+    return `55${digits}`;
+  }
+  return digits;
+}
+
 async function sendEvolutionConfig(config: typeof integrationConfigs.$inferSelect, phone: string, message: string) {
   if (!config.secretCiphertext || !config.publicConfig) throw new Error("Integração Evolution ativa não encontrada.");
   const publicConfig = config.publicConfig as { instanceName?: string; baseUrl?: string };
   const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { apiKey?: string };
   if (!publicConfig.instanceName || !publicConfig.baseUrl || !secrets.apiKey) throw new Error("Configuração Evolution incompleta.");
-  const response = await fetch(`${publicConfig.baseUrl.replace(/\/$/, "")}/message/sendText/${encodeURIComponent(publicConfig.instanceName)}`, {
-    method: "POST", headers: { apikey: secrets.apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ number: phone.replace(/\D/g, ""), text: message }), signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`Evolution API respondeu ${response.status}`);
-  const payload = await response.json().catch(() => ({})) as { key?: { id?: string } };
+  const normalizedPhone = normalizeWhatsAppNumber(phone);
+  if (normalizedPhone.length < 8) throw new Error("Número de WhatsApp inválido.");
+
+  let response: Response;
+  try {
+    response = await fetch(`${publicConfig.baseUrl.replace(/\/$/, "")}/message/sendText/${encodeURIComponent(publicConfig.instanceName)}`, {
+      method: "POST",
+      headers: { apikey: secrets.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ number: normalizedPhone, text: message }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    throw new Error(error instanceof Error && error.name === "AbortError" ? "Tempo excedido ao chamar a Evolution API." : "Não foi possível conectar à Evolution API. Verifique a URL e se o serviço está ativo.");
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    let errorDetail = "";
+    try {
+      const parsed = JSON.parse(errorBody);
+      errorDetail = parsed?.response?.message || parsed?.message || errorBody;
+    } catch {
+      errorDetail = errorBody.slice(0, 200);
+    }
+    throw new Error(`Evolution API respondeu ${response.status}${errorDetail ? `: ${errorDetail}` : ""}`);
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as { key?: { id?: string } };
   return payload.key?.id ?? null;
 }
 

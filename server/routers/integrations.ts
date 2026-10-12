@@ -30,7 +30,7 @@ export const integrationRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const [rules] = await db.select({ defaultWhatsAppIntegrationId: tenantOperatingRules.defaultWhatsAppIntegrationId }).from(tenantOperatingRules).where(eq(tenantOperatingRules.tenantId, input.tenantId)).limit(1);
-    const channels = await db.execute<{ id: number; provider: "zapi" | "meta"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>(
+    const channels = await db.execute<{ id: number; provider: "zapi" | "meta" | "evolution"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>(
       `SELECT i.id, i.provider, i.name, i.channel_identifier AS channelIdentifier, i.channel_purpose AS channelPurpose, i.status, i.last_verified_at AS lastVerifiedAt, i.last_error AS lastError,
         COUNT(c.id) AS totalConversations,
         COALESCE(SUM(CASE WHEN c.queue <> 'resolved' THEN 1 ELSE 0 END), 0) AS pendingConversations,
@@ -42,7 +42,7 @@ export const integrationRouter = router({
       GROUP BY i.id, i.provider, i.name, i.status, i.last_verified_at, i.last_error
       ORDER BY CASE WHEN i.status = 'error' THEN 0 WHEN i.status = 'active' THEN 1 ELSE 2 END, i.updated_at DESC`
     );
-    const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
+    const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta" | "evolution"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
     const setupConfigsResult = await db.select({ id: integrationConfigs.id, provider: integrationConfigs.provider, webhookSecretCiphertext: integrationConfigs.webhookSecretCiphertext }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi")));
     const setupConfigs = Array.isArray(setupConfigsResult) ? setupConfigsResult : [];
     const zapiSetup = new Map(setupConfigs.map(config => [config.id, config.webhookSecretCiphertext ? { webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/zapi/${config.id}/${decryptTenantSecret(config.webhookSecretCiphertext)}` } : null] as const));
@@ -72,7 +72,7 @@ export const integrationRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const [channel] = await db.select({ id: integrationConfigs.id, provider: integrationConfigs.provider, name: integrationConfigs.name }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId))).limit(1);
-      if (!channel || (channel.provider !== "zapi" && channel.provider !== "meta")) throw new TRPCError({ code: "NOT_FOUND", message: "Canal WhatsApp não encontrado nesta empresa." });
+      if (!channel || (channel.provider !== "zapi" && channel.provider !== "meta" && channel.provider !== "evolution")) throw new TRPCError({ code: "NOT_FOUND", message: "Canal WhatsApp não encontrado nesta empresa." });
       await db.update(integrationConfigs).set({ channelIdentifier: input.channelIdentifier, channelPurpose: input.channelPurpose }).where(eq(integrationConfigs.id, channel.id));
       await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.whatsapp_details_updated", entityType: "integration", entityId: channel.id, metadata: { name: channel.name, channelIdentifier: input.channelIdentifier, channelPurpose: input.channelPurpose } });
       return { success: true as const };

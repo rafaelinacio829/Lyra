@@ -8,7 +8,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 type Filter = "all" | "active" | "attention" | "draft";
-const providerLabel = (provider: string) => provider === "meta" ? "WhatsApp Cloud API" : "Z-API";
+const providerLabel = (provider: string) => provider === "meta" ? "WhatsApp Cloud API" : provider === "evolution" ? "Evolution API" : "Z-API";
 const statusMeta = (status: string, hasError: boolean) => hasError || status === "error" ? { label: "Atenção", className: "bg-[#fff0eb] text-[#a66049]" } : status === "active" ? { label: "Ativo", className: "bg-[#e8f5e5] text-[#4c805a]" } : { label: "Rascunho", className: "bg-[#edf1f2] text-[#687982]" };
 const purposeLabel = (purpose: string) => ({ general: "Geral", sales: "Vendas", support: "Suporte", billing: "Cobrança", operations: "Operações", marketing: "Marketing", other: "Outro" }[purpose] || "Geral");
 

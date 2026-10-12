@@ -130,7 +130,7 @@ export const conversationRouter = router({
       if (!conversation.contactId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A conversa não possui contato associado." });
       const [contact] = await db.select({ phone: contacts.phone }).from(contacts).where(and(eq(contacts.id, conversation.contactId), eq(contacts.tenantId, input.tenantId))).limit(1);
       if (!contact) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ative uma integração Z-API válida para enviar mensagens pelo WhatsApp." });
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Contato não encontrado para esta conversa." });
       }
       let providerMessageId: string | null = null;
       let integrationId = input.integrationId ?? conversation.integrationConfigId;
@@ -141,8 +141,9 @@ export const conversationRouter = router({
       if (!integrationId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão de WhatsApp ativa para enviar esta mensagem." });
       try {
         providerMessageId = await sendWhatsAppText(input.tenantId, integrationId, contact.phone, input.body.trim());
-      } catch {
-        throw new TRPCError({ code: "BAD_GATEWAY", message: "A conexão de WhatsApp não confirmou o envio. Verifique o canal selecionado e tente novamente." });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "A conexão de WhatsApp não confirmou o envio. Verifique o canal selecionado e tente novamente.";
+        throw new TRPCError({ code: "BAD_GATEWAY", message });
       }
       await db.insert(messages).values({ tenantId: input.tenantId, conversationId: input.conversationId, authorMembershipId: access.membershipId, direction: "outbound", body: input.body.trim(), channel: "whatsapp", providerMessageId });
       await db.update(conversations).set({ integrationConfigId: integrationId, latestMessagePreview: input.body.trim(), unreadCount: 0, firstResponseAt: new Date(), updatedAt: new Date() }).where(eq(conversations.id, input.conversationId));

@@ -14,7 +14,7 @@ const queueMeta: Record<Queue, { label: string; className: string }> = {
   human: { label: "Atendente", className: "bg-[#fff1d6] text-[#9b7439]" },
   resolved: { label: "Resolvido", className: "bg-[#edf0f2] text-[#68777f]" },
 };
-const connectionLabel = (connection?: { name?: string | null; provider?: string | null }) => connection?.name ? `${connection.provider === "meta" ? "Meta" : "Z-API"} · ${connection.name}` : "Canal ainda não definido";
+const connectionLabel = (connection?: { name?: string | null; provider?: string | null }) => connection?.name ? `${connection.provider === "meta" ? "Meta" : connection.provider === "evolution" ? "Evolution" : "Z-API"} · ${connection.name}` : "Canal ainda não definido";
 
 export default function ConversationsPage() {
   const tenants = trpc.tenant.mine.useQuery();
@@ -28,7 +28,7 @@ export default function ConversationsPage() {
   const selected = trpc.conversations.detail.useQuery({ tenantId: tenantId ?? 0, conversationId: selectedId ?? 0 }, { enabled: !!tenantId && !!selectedId });
   const integrations = trpc.integrations.list.useQuery({ tenantId: tenantId ?? 0 }, { enabled: !!tenantId });
   const escalations = trpc.conversations.escalations.useQuery({ tenantId: tenantId ?? 0 }, { enabled: !!tenantId });
-  const connections = useMemo<WhatsAppConnection[]>(() => (integrations.data || []).filter(item => (item.provider === "zapi" || item.provider === "meta") && item.status === "active").map(item => ({ id: item.id, name: item.name, provider: item.provider })), [integrations.data]);
+  const connections = useMemo<WhatsAppConnection[]>(() => (integrations.data || []).filter(item => (item.provider === "zapi" || item.provider === "meta" || item.provider === "evolution") && item.status === "active").map(item => ({ id: item.id, name: item.name, provider: item.provider })), [integrations.data]);
   const acknowledge = trpc.conversations.acknowledgeEscalation.useMutation({ onSuccess: result => { toast.success("Escalonamento assumido."); setSelectedId(result.conversationId); escalations.refetch(); list.refetch(); }, onError: error => toast.error(error.message) });
   useEffect(() => { if (list.data?.length && !selectedId) setSelectedId(list.data[0].id); if (selectedId && !list.data?.some(item => item.id === selectedId)) setSelectedId(null); }, [list.data, selectedId]);
   if (tenants.isLoading || !tenantId) return <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#5d8b75]" /></div>;
