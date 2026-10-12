@@ -20,11 +20,15 @@ function messageText(payload: Record<string, unknown>) {
 }
 
 export async function handleZapiWebhook(req: Request, res: Response) {
+  return handleProviderWebhook(req, res, "zapi");
+}
+
+export async function handleProviderWebhook(req: Request, res: Response, provider: "zapi" | "evolution") {
   try {
     const integrationId = Number(req.params.integrationId);
     const webhookKey = req.params.webhookKey;
     if (!Number.isInteger(integrationId) || !webhookKey) return res.status(404).json({ error: "webhook_not_found" });
-    const config = await validateZapiWebhook(integrationId, webhookKey);
+    const config = await validateZapiWebhook(integrationId, webhookKey, provider);
     if (!config) return res.status(403).json({ error: "webhook_forbidden" });
     const payload = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
     if (payload.fromMe === true) return res.json({ ok: true, skipped: "outbound_event" });

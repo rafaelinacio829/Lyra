@@ -49,12 +49,26 @@ async function sendMetaConfig(meta: typeof integrationConfigs.$inferSelect, phon
   return payload.messages?.[0]?.id ?? null;
 }
 
+async function sendEvolutionConfig(config: typeof integrationConfigs.$inferSelect, phone: string, message: string) {
+  if (!config.secretCiphertext || !config.publicConfig) throw new Error("Integração Evolution ativa não encontrada.");
+  const publicConfig = config.publicConfig as { instanceName?: string; baseUrl?: string };
+  const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { apiKey?: string };
+  if (!publicConfig.instanceName || !publicConfig.baseUrl || !secrets.apiKey) throw new Error("Configuração Evolution incompleta.");
+  const response = await fetch(`${publicConfig.baseUrl.replace(/\/$/, "")}/message/sendText/${encodeURIComponent(publicConfig.instanceName)}`, {
+    method: "POST", headers: { apikey: secrets.apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ number: phone.replace(/\D/g, ""), text: message }), signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Evolution API respondeu ${response.status}`);
+  const payload = await response.json().catch(() => ({})) as { key?: { id?: string } };
+  return payload.key?.id ?? null;
+}
+
 export async function sendWhatsAppText(tenantId: number, integrationId: number, phone: string, message: string) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
   const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, integrationId), eq(integrationConfigs.tenantId, tenantId), eq(integrationConfigs.status, "active"))).limit(1);
-  if (!config || (config.provider !== "zapi" && config.provider !== "meta")) throw new Error("Conexão de WhatsApp ativa não encontrada para este tenant.");
-  return config.provider === "zapi" ? sendZapiConfig(config, phone, message) : sendMetaConfig(config, phone, message);
+  if (!config || (config.provider !== "zapi" && config.provider !== "evolution" && config.provider !== "meta")) throw new Error("Conexão de WhatsApp ativa não encontrada para este tenant.");
+  return config.provider === "zapi" ? sendZapiConfig(config, phone, message) : config.provider === "evolution" ? sendEvolutionConfig(config, phone, message) : sendMetaConfig(config, phone, message);
 }
 
 export async function sendZapiText(tenantId: number, phone: string, message: string) {

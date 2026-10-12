@@ -7,4 +7,45 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  zapiPartnerClientToken: process.env.ZAPI_PARTNER_CLIENT_TOKEN ?? "",
+  evolutionApiUrl: process.env.EVOLUTION_API_URL ?? "",
+  evolutionApiKey: process.env.EVOLUTION_API_KEY ?? "",
+  platformProfitMarginPercent: Number(process.env.PLATFORM_PROFIT_MARGIN_PERCENT ?? "30"),
 };
+
+const productionRequiredEnvironment = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "TENANT_SECRETS_KEY",
+  "LOCAL_AUTH_BOOTSTRAP_CODE",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+] as const;
+
+export function validateEnvironment() {
+  if (!ENV.isProduction) return;
+
+  const missing = productionRequiredEnvironment.filter(name => !process.env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(`Configuração de produção incompleta. Variáveis ausentes: ${missing.join(", ")}.`);
+  }
+  const placeholderValues = ["troque-", "replace_for_production", "xxxxxxxx", "local-dev-", "local-bootstrap-"];
+  const hasPlaceholder = (name: (typeof productionRequiredEnvironment)[number]) =>
+    placeholderValues.some(value => process.env[name]!.toLowerCase().includes(value));
+  const placeholders = productionRequiredEnvironment.filter(hasPlaceholder);
+  if (placeholders.length > 0) {
+    throw new Error(`Configuração de produção contém valores de exemplo: ${placeholders.join(", ")}.`);
+  }
+  if (process.env.JWT_SECRET!.length < 32) {
+    throw new Error("JWT_SECRET deve ter ao menos 32 caracteres em produção.");
+  }
+  if (process.env.TENANT_SECRETS_KEY!.length < 32) {
+    throw new Error("TENANT_SECRETS_KEY deve ter ao menos 32 caracteres em produção.");
+  }
+  if (process.env.LOCAL_AUTH_BOOTSTRAP_CODE!.length < 16) {
+    throw new Error("LOCAL_AUTH_BOOTSTRAP_CODE deve ter ao menos 16 caracteres em produção.");
+  }
+  if (!process.env.STRIPE_SECRET_KEY!.startsWith("sk_") || !process.env.STRIPE_WEBHOOK_SECRET!.startsWith("whsec_")) {
+    throw new Error("As credenciais Stripe de produção devem usar os formatos sk_* e whsec_*.");
+  }
+}

@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import { sql } from "drizzle-orm";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
@@ -10,6 +11,9 @@ import { serveStatic, setupVite } from "./vite";
 import { handleZapiWebhook } from "../webhooks/zapi";
 import { handleStripeWebhook } from "../webhooks/stripe";
 import { handleMetaWebhook, verifyMetaWebhook } from "../webhooks/meta";
+import { handleEvolutionWebhook } from "../webhooks/evolution";
+import { getDb } from "../db";
+import { validateEnvironment } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,8 +35,23 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  validateEnvironment();
   const app = express();
   const server = createServer(app);
+  app.get("/healthz", async (_req, res) => {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ ok: false, database: "unavailable" });
+      return;
+    }
+
+    try {
+      await db.execute(sql`SELECT 1`);
+      res.status(200).json({ ok: true, database: "available" });
+    } catch {
+      res.status(503).json({ ok: false, database: "unavailable" });
+    }
+  });
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
   app.get("/api/webhooks/meta/:integrationId", verifyMetaWebhook);
   app.post("/api/webhooks/meta/:integrationId", express.raw({ type: "application/json" }), handleMetaWebhook);
@@ -41,6 +60,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   app.post("/api/webhooks/zapi/:integrationId/:webhookKey", handleZapiWebhook);
+  app.post("/api/webhooks/evolution/:webhookKey", handleEvolutionWebhook);
   // tRPC API
   app.use(
     "/api/trpc",
@@ -66,6 +86,19 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  const shutdown = (signal: string) => {
+    console.log(`[Server] ${signal} received, shutting down`);
+    server.close(error => {
+      if (error) {
+        console.error("[Server] Graceful shutdown failed:", error);
+        process.exitCode = 1;
+      }
+    });
+  };
+
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: lyra-evolution-api
+    runtime: image
+    plan: free
+    image:
+      url: evoapicloud/evolution-api:latest
+    healthCheckPath: /health
+    envVars:
+      - key: SERVER_URL
+        sync: false
+      - key: AUTHENTICATION_API_KEY
+        generateValue: true
+      - key: AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES
+        value: "false"
+      - key: DATABASE_ENABLED
+        value: "false"
+      - key: CACHE_REDIS_ENABLED
+        value: "false"
+      - key: DEL_INSTANCE
+        value: "false"
+      - key: QRCODE_LIMIT
+        value: "30"
+      - key: LOG_LEVEL
+        value: "ERROR"

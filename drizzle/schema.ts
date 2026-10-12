@@ -11,22 +11,22 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
-export const platformRole = mysqlEnum("platform_role", ["user", "admin"]);
-export const tenantStatus = mysqlEnum("tenant_status", ["trial", "active", "suspended", "cancelled"]);
-export const tenantRole = mysqlEnum("tenant_role", ["tenant_admin", "agent"]);
-export const memberPresence = mysqlEnum("member_presence", ["online", "busy", "away", "offline"]);
-export const subscriptionStatus = mysqlEnum("subscription_status", ["trialing", "active", "past_due", "paused", "cancelled"]);
+export const platformRole = mysqlEnum("role", ["user", "admin"]);
+export const tenantStatus = mysqlEnum("status", ["trial", "active", "suspended", "cancelled"]);
+export const tenantRole = mysqlEnum("role", ["tenant_admin", "agent"]);
+export const memberPresence = mysqlEnum("presence", ["online", "busy", "away", "offline"]);
+export const subscriptionStatus = mysqlEnum("status", ["trialing", "active", "past_due", "paused", "cancelled"]);
 export const billingMethod = mysqlEnum("billing_method", ["stripe", "pix", "invoice", "bank_transfer", "manual"]);
-export const subscriptionPaymentMethod = mysqlEnum("subscription_payment_method", ["automatic", "card", "boleto"]);
-export const capacityAddonType = mysqlEnum("capacity_addon_type", ["members", "agents", "messages"]);
-export const capacityAddonStatus = mysqlEnum("capacity_addon_status", ["pending", "active", "past_due", "cancelled"]);
-export const agentProvider = mysqlEnum("agent_provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
-export const agentMode = mysqlEnum("agent_mode", ["chat", "streaming", "workflow", "completion"]);
-export const conversationQueue = mysqlEnum("conversation_queue", ["ai", "human", "resolved"]);
-export const messageDirection = mysqlEnum("message_direction", ["inbound", "outbound", "internal_note"]);
-export const fileClassification = mysqlEnum("file_classification", ["media", "invoice", "financial_document", "conversation_export"]);
-export const integrationProvider = mysqlEnum("integration_provider", ["zapi", "meta", "dify", "erp_custom"]);
-export const integrationStatus = mysqlEnum("integration_status", ["draft", "verified", "active", "error", "disabled"]);
+export const subscriptionPaymentMethod = mysqlEnum("payment_method", ["automatic", "card", "boleto"]);
+export const capacityAddonType = mysqlEnum("type", ["members", "agents", "messages"]);
+export const capacityAddonStatus = mysqlEnum("status", ["pending", "active", "past_due", "cancelled"]);
+export const agentProvider = mysqlEnum("provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
+export const agentMode = mysqlEnum("mode", ["chat", "streaming", "workflow", "completion"]);
+export const conversationQueue = mysqlEnum("queue", ["ai", "human", "resolved"]);
+export const messageDirection = mysqlEnum("direction", ["inbound", "outbound", "internal_note"]);
+export const fileClassification = mysqlEnum("classification", ["media", "invoice", "financial_document", "conversation_export"]);
+export const integrationProvider = mysqlEnum("provider", ["zapi", "evolution", "meta", "dify", "erp_custom"]);
+export const integrationStatus = mysqlEnum("status", ["draft", "verified", "active", "error", "disabled"]);
 
 /** Core identity table managed by Manus OAuth. */
 export const users = mysqlTable("users", {
@@ -213,6 +213,21 @@ export const usageCounters = mysqlTable(
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   table => [uniqueIndex("usage_tenant_period_unique").on(table.tenantId, table.periodKey)]
+);
+
+export const tenantCostEvents = mysqlTable(
+  "tenant_cost_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    category: varchar("category", { length: 40 }).notNull(),
+    provider: varchar("provider", { length: 40 }),
+    units: int("units").notNull().default(1),
+    costCents: int("cost_cents").notNull().default(0),
+    metadata: json("metadata"),
+    occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  },
+  table => [index("tenant_cost_events_tenant_date_idx").on(table.tenantId, table.occurredAt)]
 );
 
 export const tenantInvites = mysqlTable(

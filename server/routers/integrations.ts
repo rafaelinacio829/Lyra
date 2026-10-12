@@ -11,6 +11,7 @@ import { assertTenantQuota } from "../planLimits";
 import { recordTenantAudit } from "../audit";
 import { assertCustomErpBaseUrl, verifyCustomErpConnection } from "../services/customErp";
 import { reportOperationalIncident } from "../operationalIncidents";
+import { ENV } from "../_core/env";
 
 const tenantInput = z.object({ tenantId: z.number().int().positive() });
 const whatsappChannelPurpose = z.enum(["general", "sales", "support", "billing", "operations", "marketing", "other"]);
@@ -37,12 +38,18 @@ export const integrationRouter = router({
         MAX(c.updated_at) AS lastActivityAt
       FROM integration_configs i
       LEFT JOIN conversations c ON c.integration_config_id = i.id AND c.tenant_id = i.tenant_id
-      WHERE i.tenant_id = ${input.tenantId} AND i.provider IN ('zapi', 'meta')
+      WHERE i.tenant_id = ${input.tenantId} AND i.provider IN ('zapi', 'evolution', 'meta')
       GROUP BY i.id, i.provider, i.name, i.status, i.last_verified_at, i.last_error
       ORDER BY CASE WHEN i.status = 'error' THEN 0 WHEN i.status = 'active' THEN 1 ELSE 2 END, i.updated_at DESC`
     );
     const rows = (Array.isArray(channels) ? channels : (channels as unknown as [Array<unknown>])[0] || []) as Array<{ id: number; provider: "zapi" | "meta"; name: string; channelIdentifier: string | null; channelPurpose: string; status: "draft" | "active" | "error"; lastVerifiedAt: Date | null; lastError: string | null; totalConversations: number; pendingConversations: number; avgFirstResponseMinutes: number | null; lastActivityAt: Date | null }>;
-    return { defaultIntegrationId: rules?.defaultWhatsAppIntegrationId ?? null, channels: rows.map(row => ({ id: Number(row.id), provider: row.provider, name: row.name, channelIdentifier: row.channelIdentifier, channelPurpose: row.channelPurpose || "general", status: row.status, lastVerifiedAt: row.lastVerifiedAt, lastError: row.lastError, lastActivityAt: row.lastActivityAt, totalConversations: Number(row.totalConversations || 0), pendingConversations: Number(row.pendingConversations || 0), avgFirstResponseMinutes: row.avgFirstResponseMinutes == null ? null : Number(row.avgFirstResponseMinutes), isDefault: Number(row.id) === rules?.defaultWhatsAppIntegrationId })) };
+    const setupConfigsResult = await db.select({ id: integrationConfigs.id, provider: integrationConfigs.provider, webhookSecretCiphertext: integrationConfigs.webhookSecretCiphertext }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi")));
+    const setupConfigs = Array.isArray(setupConfigsResult) ? setupConfigsResult : [];
+    const zapiSetup = new Map(setupConfigs.map(config => [config.id, config.webhookSecretCiphertext ? { webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/zapi/${config.id}/${decryptTenantSecret(config.webhookSecretCiphertext)}` } : null] as const));
+    const metaConfigsResult = await db.select({ id: integrationConfigs.id, webhookSecretCiphertext: integrationConfigs.webhookSecretCiphertext }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "meta")));
+    const metaConfigs = Array.isArray(metaConfigsResult) ? metaConfigsResult : [];
+    const metaSetup = new Map(metaConfigs.map(config => [config.id, config.webhookSecretCiphertext ? { webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/meta/${config.id}`, verifyToken: decryptTenantSecret(config.webhookSecretCiphertext) } : null] as const));
+    return { defaultIntegrationId: rules?.defaultWhatsAppIntegrationId ?? null, channels: rows.map(row => ({ id: Number(row.id), provider: row.provider, name: row.name, channelIdentifier: row.channelIdentifier, channelPurpose: row.channelPurpose || "general", status: row.status, lastVerifiedAt: row.lastVerifiedAt, lastError: row.lastError, lastActivityAt: row.lastActivityAt, totalConversations: Number(row.totalConversations || 0), pendingConversations: Number(row.pendingConversations || 0), avgFirstResponseMinutes: row.avgFirstResponseMinutes == null ? null : Number(row.avgFirstResponseMinutes), isDefault: Number(row.id) === rules?.defaultWhatsAppIntegrationId, setup: row.provider === "zapi" ? zapiSetup.get(Number(row.id)) ?? null : row.provider === "meta" ? metaSetup.get(Number(row.id)) ?? null : null })) };
   }),
 
   setDefaultWhatsAppChannel: protectedProcedure
@@ -52,7 +59,7 @@ export const integrationRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const [channel] = await db.select({ id: integrationConfigs.id, name: integrationConfigs.name, provider: integrationConfigs.provider }).from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.status, "active"))).limit(1);
-      if (!channel || (channel.provider !== "zapi" && channel.provider !== "meta")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão WhatsApp ativa desta empresa." });
+      if (!channel || (channel.provider !== "zapi" && channel.provider !== "evolution" && channel.provider !== "meta")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Selecione uma conexão WhatsApp ativa desta empresa." });
       await db.insert(tenantOperatingRules).values({ tenantId: input.tenantId, defaultWhatsAppIntegrationId: channel.id }).onDuplicateKeyUpdate({ set: { defaultWhatsAppIntegrationId: channel.id } });
       await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.whatsapp_default_changed", entityType: "integration", entityId: channel.id, metadata: { name: channel.name, provider: channel.provider } });
       return { success: true as const, integrationId: channel.id };
@@ -72,7 +79,7 @@ export const integrationRouter = router({
     }),
 
   list: protectedProcedure.input(tenantInput).query(async ({ ctx, input }) => {
-    await requireTenantAccess(ctx.user.id, input.tenantId);
+    await requireTenantAdmin(ctx.user.id, input.tenantId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     return db
@@ -112,6 +119,106 @@ export const integrationRouter = router({
       return { id: config.id, webhookUrl: `${requestOrigin(ctx.req)}/api/webhooks/zapi/${config.id}/${webhookKey}` };
     }),
 
+  createZapiInstance: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), channelPurpose: whatsappChannelPurpose.default("general") }))
+    .mutation(async ({ ctx, input }) => {
+     await requireTenantAdmin(ctx.user.id, input.tenantId);
+     if (!ENV.zapiPartnerClientToken) {
+       throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A conexão automática ainda não está habilitada nesta instalação. Configure o token de parceiro da Z-API." });
+     }
+     const db = await getDb();
+     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+     await assertTenantQuota(input.tenantId, "integrations");
+     let response: Response;
+     try {
+       response = await fetch("https://api.z-api.io/instances/integrator/on-demand", {
+         method: "POST",
+         headers: { "Client-Token": ENV.zapiPartnerClientToken, "Content-Type": "application/json" },
+         body: JSON.stringify({ name: input.name }),
+         signal: AbortSignal.timeout(15_000),
+       });
+     } catch {
+       throw new TRPCError({ code: "BAD_GATEWAY", message: "Não foi possível alcançar a Z-API para criar a conexão." });
+     }
+     const payload = await response.json().catch(() => ({})) as { id?: string; instanceId?: string; token?: string; instanceToken?: string };
+     const instanceId = payload.instanceId || payload.id;
+     const instanceToken = payload.instanceToken || payload.token;
+     if (!response.ok || !instanceId || !instanceToken) {
+       throw new TRPCError({ code: "BAD_GATEWAY", message: "A Z-API não criou a instância automaticamente. Verifique o contrato da conta integradora." });
+     }
+     const webhookKey = randomBytes(24).toString("base64url");
+     await db.insert(integrationConfigs).values({
+       tenantId: input.tenantId, provider: "zapi", name: input.name, channelIdentifier: instanceId,
+       channelPurpose: input.channelPurpose, status: "draft", publicConfig: { instanceId },
+       secretCiphertext: encryptTenantSecret(JSON.stringify({ instanceToken, clientToken: ENV.zapiPartnerClientToken, webhookKey })),
+       secretFingerprint: fingerprintTenantSecret(instanceToken), webhookSecretCiphertext: encryptTenantSecret(webhookKey),
+     });
+     const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi"), eq(integrationConfigs.name, input.name))).limit(1);
+     if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A instância foi criada, mas não foi salva na empresa." });
+     const webhookUrl = `${requestOrigin(ctx.req)}/api/webhooks/zapi/${config.id}/${webhookKey}`;
+     const webhookResponse = await fetch(`https://api.z-api.io/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(instanceToken)}/update-every-webhooks`, {
+       method: "PUT",
+       headers: { "Client-Token": ENV.zapiPartnerClientToken, "Content-Type": "application/json" },
+       body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
+       signal: AbortSignal.timeout(15_000),
+     }).catch(() => null);
+     if (webhookResponse?.ok) {
+       await db.update(integrationConfigs).set({ status: "active", lastVerifiedAt: new Date() }).where(eq(integrationConfigs.id, config.id));
+     } else {
+       await db.update(integrationConfigs).set({ status: "error", lastError: "A instância foi criada, mas o webhook automático não pôde ser ativado." }).where(eq(integrationConfigs.id, config.id));
+       throw new TRPCError({ code: "BAD_GATEWAY", message: "A instância foi criada, mas a Z-API não aceitou a configuração automática do webhook." });
+     }
+     await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.zapi_instance_created", entityType: "integration", entityId: config.id, metadata: { name: input.name } });
+     return { id: config.id, webhookUrl };
+    }),
+
+  createEvolutionInstance: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), name: z.string().trim().min(2).max(120), channelPurpose: whatsappChannelPurpose.default("general") }))
+    .mutation(async ({ ctx, input }) => {
+     await requireTenantAdmin(ctx.user.id, input.tenantId);
+     if (!ENV.evolutionApiUrl || !ENV.evolutionApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure EVOLUTION_API_URL e EVOLUTION_API_KEY no servidor." });
+     const db = await getDb();
+     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+     await assertTenantQuota(input.tenantId, "integrations");
+     const instanceName = `lyra-${input.tenantId}-${randomBytes(5).toString("hex")}`;
+     const webhookKey = randomBytes(24).toString("base64url");
+     const webhookUrl = `${requestOrigin(ctx.req)}/api/webhooks/evolution/${webhookKey}`;
+     const baseUrl = ENV.evolutionApiUrl.replace(/\/$/, "");
+     const response = await fetch(`${baseUrl}/instance/create`, {
+       method: "POST",
+       headers: { apikey: ENV.evolutionApiKey, "Content-Type": "application/json" },
+       body: JSON.stringify({ instanceName, integration: "WHATSAPP-BAILEYS", qrcode: true, webhook: { enabled: true, url: webhookUrl, byEvents: false, base64: true, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] } }),
+       signal: AbortSignal.timeout(15_000),
+     }).catch(() => null);
+     if (!response?.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Evolution API não criou a instância. Verifique se o servidor está disponível." });
+     const payload = await response.json().catch(() => ({})) as { hash?: string; instance?: { instanceId?: string } };
+     await db.insert(integrationConfigs).values({
+       tenantId: input.tenantId, provider: "evolution", name: input.name, channelIdentifier: instanceName,
+       channelPurpose: input.channelPurpose, status: "active", lastVerifiedAt: new Date(), publicConfig: { instanceName, baseUrl },
+       secretCiphertext: encryptTenantSecret(JSON.stringify({ apiKey: ENV.evolutionApiKey, webhookKey })),
+       secretFingerprint: fingerprintTenantSecret(instanceName), webhookSecretCiphertext: encryptTenantSecret(webhookKey),
+     });
+     const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"), eq(integrationConfigs.name, input.name))).limit(1);
+     if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A instância foi criada, mas não foi salva na empresa." });
+     await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.evolution_instance_created", entityType: "integration", entityId: config.id, metadata: { name: input.name, instanceName, providerResponse: Boolean(payload.hash || payload.instance) } });
+     return { id: config.id, instanceName };
+    }),
+
+  getEvolutionQrCode: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+     await requireTenantAdmin(ctx.user.id, input.tenantId);
+     if (!ENV.evolutionApiUrl || !ENV.evolutionApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Evolution API não configurada no servidor." });
+     const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+     const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"))).limit(1);
+     if (!config?.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Conexão Evolution não encontrada." });
+     const { instanceName } = config.publicConfig as { instanceName: string };
+     const response = await fetch(`${ENV.evolutionApiUrl.replace(/\/$/, "")}/instance/connect/${encodeURIComponent(instanceName)}`, { headers: { apikey: ENV.evolutionApiKey }, signal: AbortSignal.timeout(10_000) });
+     if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Evolution API não retornou o QR Code." });
+     const payload = await response.json() as { base64?: string; code?: string };
+     return { image: payload.base64 || null, code: payload.code || null };
+    }),
+
   activateZapiWebhook: protectedProcedure
     .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
@@ -139,6 +246,51 @@ export const integrationRouter = router({
         await reportOperationalIncident({ tenantId: input.tenantId, integrationConfigId: config.id, source: "zapi.webhook_activation", severity: "critical", summary: "Falha ao ativar webhook Z-API", error });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Não foi possível ativar o webhook Z-API. Revise a instância e as credenciais." });
       }
+    }),
+
+  getZapiQrCode: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi"))).limit(1);
+      if (!config?.secretCiphertext || !config.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração Z-API não encontrada." });
+      const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { instanceToken?: string; clientToken?: string };
+      const publicConfig = config.publicConfig as { instanceId?: string };
+      if (!publicConfig.instanceId || !secrets.instanceToken || !secrets.clientToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Complete os dados da instância antes de gerar o QR Code." });
+      const response = await fetch(`https://api.z-api.io/instances/${encodeURIComponent(publicConfig.instanceId)}/token/${encodeURIComponent(secrets.instanceToken)}/qrcode`, {
+        headers: { "Client-Token": secrets.clientToken },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Z-API não conseguiu gerar o QR Code. Verifique a instância e tente novamente." });
+      const payload = await response.json() as { value?: string; qrcode?: string; connected?: boolean };
+      const value = payload.value || payload.qrcode;
+      if (!value) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Z-API não retornou um QR Code para esta instância." });
+      return {
+        image: value.startsWith("data:") || value.startsWith("http") ? value : `data:image/png;base64,${value}`,
+        connected: payload.connected === true,
+      };
+    }),
+
+  getZapiStatus: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "zapi"))).limit(1);
+      if (!config?.secretCiphertext || !config.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração Z-API não encontrada." });
+      const secrets = JSON.parse(decryptTenantSecret(config.secretCiphertext)) as { instanceToken?: string; clientToken?: string };
+      const publicConfig = config.publicConfig as { instanceId?: string };
+      if (!publicConfig.instanceId || !secrets.instanceToken || !secrets.clientToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configuração Z-API incompleta." });
+      const response = await fetch(`https://api.z-api.io/instances/${encodeURIComponent(publicConfig.instanceId)}/token/${encodeURIComponent(secrets.instanceToken)}/status`, {
+        headers: { "Client-Token": secrets.clientToken },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return { connected: false as const };
+      const payload = await response.json() as { connected?: boolean; value?: boolean };
+      return { connected: payload.connected === true || payload.value === true };
     }),
 
   saveMeta: protectedProcedure
@@ -200,10 +352,10 @@ export const integrationRouter = router({
     }),
 });
 
-export async function validateZapiWebhook(integrationId: number, webhookKey: string) {
+export async function validateZapiWebhook(integrationId: number, webhookKey: string, provider: "zapi" | "evolution" = "zapi") {
   const db = await getDb();
   if (!db) return null;
-  const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, integrationId), eq(integrationConfigs.provider, "zapi"), eq(integrationConfigs.status, "active"))).limit(1);
+  const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, integrationId), eq(integrationConfigs.provider, provider), eq(integrationConfigs.status, "active"))).limit(1);
   if (!config?.webhookSecretCiphertext) return null;
   const expected = decryptTenantSecret(config.webhookSecretCiphertext);
   const expectedBuffer = Buffer.from(expected);

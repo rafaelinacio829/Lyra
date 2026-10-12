@@ -2,12 +2,13 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { accountRecoveryCodes, auditLogs, capacityAddons, integrationConfigs, operationalIncidents as incidentRecords, plans, subscriptions, tenants, usageCounters, users } from "../../drizzle/schema";
+import { accountRecoveryCodes, auditLogs, capacityAddons, integrationConfigs, operationalIncidents as incidentRecords, plans, subscriptions, tenants, tenantCostEvents, usageCounters, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { createRecoveryCode, normalizeEmail, normalizeRecoveryCode, tokenHash } from "../localAuth";
 import { platformAdminProcedure, router } from "../_core/trpc";
 import { scoreCustomerHealth, summarizePlatformCustomers } from "../platformMetrics";
 import { capacityAddonCatalog, type CapacityAddonType } from "../billing/addons";
+import { ENV } from "../_core/env";
 
 const customerSelect = { id: tenants.id, name: tenants.name, primaryEmail: tenants.primaryEmail, tenantStatus: tenants.status, trialEndsAt: tenants.trialEndsAt, createdAt: tenants.createdAt, planCode: plans.code, planName: plans.name, monthlyPriceCents: plans.monthlyPriceCents, annualPriceCents: plans.annualPriceCents, subscriptionStatus: subscriptions.status, billingMethod: subscriptions.billingMethod, billingReference: subscriptions.billingReference, billingInterval: subscriptions.billingInterval, currentPeriodEndsAt: subscriptions.currentPeriodEndsAt, cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd };
 
@@ -27,6 +28,28 @@ export const platformRouter = router({
     const customersWithHealth = customers.map(customer => { const activity = usageByTenant.get(customer.id); return { ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0, health: scoreCustomerHealth({ ...customer, conversations: activity?.conversations ?? 0, messages: activity?.messages ?? 0 }) }; });
     const health = { critical: customersWithHealth.filter(customer => customer.health.level === "critical").length, attention: customersWithHealth.filter(customer => customer.health.level === "attention").length, healthy: customersWithHealth.filter(customer => customer.health.level === "healthy").length };
     return { metrics: summarizePlatformCustomers(customers), customers: customersWithHealth, health };
+  }),
+  costSummary: platformAdminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    const rows = await db.select({ tenantId: tenantCostEvents.tenantId, tenantName: tenants.name, category: tenantCostEvents.category, provider: tenantCostEvents.provider, units: tenantCostEvents.units, costCents: tenantCostEvents.costCents, occurredAt: tenantCostEvents.occurredAt }).from(tenantCostEvents).innerJoin(tenants, eq(tenantCostEvents.tenantId, tenants.id)).orderBy(desc(tenantCostEvents.occurredAt)).limit(5000);
+    const margin = Math.max(0, Math.min(500, ENV.platformProfitMarginPercent));
+    const byTenant = new Map<number, { tenantId: number; tenantName: string; costCents: number; suggestedPriceCents: number; profitCents: number; events: number }>();
+    for (const row of rows) {
+      const current = byTenant.get(row.tenantId) ?? { tenantId: row.tenantId, tenantName: row.tenantName, costCents: 0, suggestedPriceCents: 0, profitCents: 0, events: 0 };
+      current.costCents += row.costCents;
+      current.suggestedPriceCents += Math.ceil(row.costCents * (1 + margin / 100));
+      current.events += 1;
+      current.profitCents = current.suggestedPriceCents - current.costCents;
+      byTenant.set(row.tenantId, current);
+    }
+    return { marginPercent: margin, tenants: Array.from(byTenant.values()), events: rows };
+  }),
+  recordCostEvent: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), category: z.string().trim().min(2).max(40), provider: z.string().trim().max(40).optional(), units: z.number().int().positive().default(1), costCents: z.number().int().nonnegative(), metadata: z.record(z.string(), z.unknown()).optional() })).mutation(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    await db.insert(tenantCostEvents).values({ tenantId: input.tenantId, category: input.category, provider: input.provider ?? null, units: input.units, costCents: input.costCents, metadata: input.metadata ?? null });
+    return { success: true as const };
   }),
   operationalIncidents: platformAdminProcedure.query(async () => {
     const db = await getDb();

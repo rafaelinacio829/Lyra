@@ -1,5 +1,5 @@
 export type IntegrationHealthRow = {
-  provider: "zapi" | "meta" | "dify" | "erp_custom";
+  provider: "zapi" | "evolution" | "meta" | "dify" | "erp_custom";
   name: string;
   status: "draft" | "verified" | "active" | "error" | "disabled";
   lastVerifiedAt: Date | null;
@@ -9,7 +9,7 @@ export type IntegrationHealthRow = {
 export function summarizeIntegrationHealth(rows: IntegrationHealthRow[]) {
   const errors = rows.filter(row => row.status === "error");
   const ready = rows.filter(row => row.status === "verified" || row.status === "active");
-  const channelsReady = ready.filter(row => row.provider === "zapi" || row.provider === "meta");
+  const channelsReady = ready.filter(row => row.provider === "zapi" || row.provider === "evolution" || row.provider === "meta");
   const waitingSetup = rows.filter(row => row.status === "draft");
   const signals: Array<{ id: string; tone: "healthy" | "warning" | "critical"; title: string; detail: string }> = [];
   if (errors.length) signals.push({ id: "integration-errors", tone: "critical", title: "Integração requer atenção", detail: `${errors.length} conexão(ões) registraram falha e precisam ser revisadas.` });

@@ -7,17 +7,6 @@ import { CheckCircle2, CloudUpload, FileLock2, KeyRound, Loader2, Plus, QrCode, 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-function createDefaultZapi() {
-  return {
-    id: crypto.randomUUID(),
-    name: "WhatsApp principal",
-    instanceId: "",
-    instanceToken: "",
-    clientToken: "",
-    webhookUrl: "",
-  };
-}
-
 function createDefaultMeta() {
   return {
     id: crypto.randomUUID(),
@@ -52,43 +41,28 @@ export default function IntegrationsPage() {
 
   return <div className="mx-auto max-w-6xl space-y-6 p-2 sm:p-5">
     <section className="rounded-[1.7rem] border border-[#dce7df] bg-[#f4f8f5] p-6"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#5d8f78]">Conexões da empresa</p><h1 className="mt-2 font-display text-4xl tracking-[-.035em] text-[#213c47]">Integrações por instância</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#6c7b82]">Crie quantas instâncias forem necessárias para cada canal ou sistema. Cada ambiente fica isolado pelo tenant e pode ter seu próprio nome, credenciais e webhook.</p><div className="mt-4 max-w-3xl rounded-2xl border border-[#cfe1d4] bg-white/70 p-4 text-sm text-[#517064]"><strong>Vários números de WhatsApp:</strong> salve cada conexão com um nome diferente, como “Vendas”, “Suporte” ou “Filial Recife”. Cada webhook e cada conversa permanecem vinculados ao número de origem.</div></section>
-    <div className="grid gap-5 lg:grid-cols-2"><ZapiForm tenantId={tenantId} onDone={() => integrations.refetch()} /><MetaForm tenantId={tenantId} onDone={() => integrations.refetch()} /><CustomErpForm tenantId={tenantId} onDone={() => integrations.refetch()} /></div>
+    <div className="grid gap-5 lg:grid-cols-2"><EvolutionForm tenantId={tenantId} onDone={() => integrations.refetch()} /><ZapiForm tenantId={tenantId} onDone={() => integrations.refetch()} /><MetaForm tenantId={tenantId} onDone={() => integrations.refetch()} /><CustomErpForm tenantId={tenantId} onDone={() => integrations.refetch()} /></div>
     <section className="rounded-3xl border border-[#dce7df] bg-white p-6 shadow-sm"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#e8f4e6]"><ServerCog className="h-5 w-5 text-[#5c8a70]" /></div><div><h2 className="font-display text-2xl text-[#2e4853]">Instâncias configuradas</h2><p className="mt-1 text-xs text-[#77878d]">Status e metadados não sensíveis das integrações desta empresa.</p></div></div><div className="mt-5 grid gap-3 md:grid-cols-2">{integrations.data?.length ? integrations.data.map(integration => <IntegrationCard key={integration.id} integration={integration} tenantId={tenantId} onChanged={() => integrations.refetch()} />) : <p className="text-sm text-[#7a898f]">Nenhuma instância configurada ainda.</p>}</div></section>
     <PrivateFiles tenantId={tenantId} files={files.data ?? []} onChanged={() => files.refetch()} />
   </div>;
 }
 
 function ZapiForm({ tenantId, onDone }: { tenantId: number; onDone: () => void }) {
-  const save = trpc.integrations.saveZapi.useMutation({
+  const create = trpc.integrations.createZapiInstance.useMutation({
     onSuccess: result => {
-      setInstances(current => current.map(item => (item.id === activeFormId ? { ...item, webhookUrl: result.webhookUrl } : item)));
-      toast.success("Instância Z-API salva. Revise a URL do webhook antes de ativar.");
+      toast.success("Conexão criada. Agora configure o webhook e leia o QR Code.");
       onDone();
     },
     onError: error => toast.error(error.message),
   });
-  const [instances, setInstances] = useState(() => [createDefaultZapi()]);
-  const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [name, setName] = useState("WhatsApp principal");
+  return <div className="rounded-3xl border border-[#dce7df] bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eaf3e8]"><Smartphone className="h-5 w-5 text-[#5f8b71]" /></div><div><h2 className="font-display text-2xl text-[#2e4853]">Conectar WhatsApp</h2><p className="text-xs text-[#76868c]">O Flow One cria a instância automaticamente.</p></div></div><p className="mt-4 text-sm leading-6 text-[#61747a]">Você não precisa informar ID, token ou configurar a Z-API. Clique abaixo, depois leia o QR Code pelo WhatsApp.</p><Input className="mt-4" value={name} onChange={event => setName(event.target.value)} placeholder="Nome da conexão" /><Button onClick={() => create.mutate({ tenantId, name })} disabled={create.isPending} className="mt-5 w-full rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{create.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Smartphone className="mr-2 h-4 w-4" />}Criar e conectar WhatsApp</Button></div>;
+}
 
-  const addInstance = () => {
-    const next = createDefaultZapi();
-    const index = instances.length + 1;
-    next.name = `WhatsApp ${index}`;
-    setInstances(current => [...current, next]);
-    setActiveFormId(next.id);
-  };
-
-  const updateInstance = (id: string, field: keyof ReturnType<typeof createDefaultZapi>, value: string) => {
-    setInstances(current => current.map(item => item.id === id ? { ...item, [field]: value } : item));
-  };
-
-  const submit = (event: FormEvent, instance: ReturnType<typeof createDefaultZapi>) => {
-    event.preventDefault();
-    setActiveFormId(instance.id);
-    save.mutate({ tenantId, name: instance.name, instanceId: instance.instanceId, instanceToken: instance.instanceToken, clientToken: instance.clientToken });
-  };
-
-  return <div className="rounded-3xl border border-[#dce7df] bg-white p-6 shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eaf3e8]"><Smartphone className="h-5 w-5 text-[#5f8b71]" /></div><div><h2 className="font-display text-2xl text-[#2e4853]">WhatsApp via Z-API</h2><p className="text-xs text-[#76868c]">Múltiplas instâncias por tenant.</p></div></div><Button type="button" variant="outline" onClick={addInstance} className="rounded-full border-[#d7e3dc] bg-white text-[#203b47]"><Plus className="mr-2 h-4 w-4" />Nova instância</Button></div>{instances.map((instance, index) => <form key={instance.id} onSubmit={event => submit(event, instance)} className="mt-5 rounded-2xl border border-[#e5eeea] bg-[#fbfcfb] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-[.14em] text-[#5d8475]">Instância {index + 1}</p><span className="text-[11px] text-[#76868c]">{instance.name || "Nova instância"}</span></div><div className="grid gap-3"><div className="grid gap-3 sm:grid-cols-2"><Input value={instance.name} onChange={event => updateInstance(instance.id, "name", event.target.value)} placeholder="Nome da instância" required /><Input value={instance.instanceId} onChange={event => updateInstance(instance.id, "instanceId", event.target.value)} placeholder="ID da instância" required /></div><Input type="password" value={instance.instanceToken} onChange={event => updateInstance(instance.id, "instanceToken", event.target.value)} placeholder="Token da instância" required /><Input type="password" value={instance.clientToken} onChange={event => updateInstance(instance.id, "clientToken", event.target.value)} placeholder="Client-Token" required /></div><Button type="submit" disabled={save.isPending} className="mt-5 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{save.isPending && activeFormId === instance.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar instância</Button>{instance.webhookUrl && <div className="mt-4 rounded-2xl bg-[#f5f8f6] p-4"><p className="text-xs font-bold text-[#4c6069]">URL do webhook</p><p className="mt-2 break-all text-xs text-[#718087]">{instance.webhookUrl}</p></div>}</form>)}</div>;
+function EvolutionForm({ tenantId, onDone }: { tenantId: number; onDone: () => void }) {
+  const create = trpc.integrations.createEvolutionInstance.useMutation({ onSuccess: () => { toast.success("Instância Evolution criada. Leia o QR Code abaixo."); onDone(); }, onError: error => toast.error(error.message) });
+  const [name, setName] = useState("WhatsApp protótipo");
+  return <div className="rounded-3xl border border-amber-200 bg-amber-50/40 p-6 shadow-sm"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100"><Smartphone className="h-5 w-5 text-amber-700" /></div><div><h2 className="font-display text-2xl text-[#2e4853]">WhatsApp via Evolution API</h2><p className="text-xs text-amber-800">Self-hosted para testes e protótipos.</p></div></div><p className="mt-4 text-sm leading-6 text-[#61747a]">A Evolution API precisa estar instalada no servidor. O sistema cria a instância e configura o webhook; o cliente só lê o QR Code.</p><Input className="mt-4" value={name} onChange={event => setName(event.target.value)} placeholder="Nome da conexão" /><Button onClick={() => create.mutate({ tenantId, name })} disabled={create.isPending} className="mt-5 w-full rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{create.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Smartphone className="mr-2 h-4 w-4" />}Criar instância de teste</Button></div>;
 }
 
 function MetaForm({ tenantId, onDone }: { tenantId: number; onDone: () => void }) {
@@ -149,10 +123,14 @@ function CustomErpForm({ tenantId, onDone }: { tenantId: number; onDone: () => v
 
 function IntegrationCard({ integration, tenantId, onChanged }: { integration: any; tenantId: number; onChanged: () => void }) {
   const activate = trpc.integrations.activateZapiWebhook.useMutation({ onSuccess: () => { toast.success("Webhook Z-API ativado."); onChanged(); }, onError: error => toast.error(error.message) });
+  const [showQr, setShowQr] = useState(false);
+  const qr = trpc.integrations.getZapiQrCode.useQuery({ tenantId, integrationId: integration.id }, { enabled: showQr && integration.provider === "zapi", retry: false });
+  const evolutionQr = trpc.integrations.getEvolutionQrCode.useQuery({ tenantId, integrationId: integration.id }, { enabled: showQr && integration.provider === "evolution", retry: false });
+  const zapiStatus = trpc.integrations.getZapiStatus.useQuery({ tenantId, integrationId: integration.id }, { enabled: integration.provider === "zapi", refetchInterval: showQr ? 10000 : false, retry: false });
   const testMeta = trpc.integrations.testMeta.useMutation({ onSuccess: () => { toast.success("WhatsApp Cloud API validada."); onChanged(); }, onError: error => toast.error(error.message) });
   const testCustomErp = trpc.integrations.testCustomErp.useMutation({ onSuccess: () => { toast.success("ERP personalizado validado."); onChanged(); }, onError: error => toast.error(error.message) });
-  const label = integration.provider === "zapi" ? "Z-API" : integration.provider === "erp_custom" ? "ERP personalizado" : integration.provider === "meta" ? "WhatsApp Cloud API" : "Dify";
-  return <article className="rounded-2xl border border-[#e1e9e4] bg-[#fbfcfb] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-[#435963]">{label} · {integration.name}</p><p className="mt-1 text-xs text-[#77878d]">{integration.secretConfigured ? "Credencial configurada" : "Sem credencial"}</p></div><Badge className={integration.status === "active" ? "bg-[#e8f5e5] text-[#4c805a] hover:bg-[#e8f5e5]" : integration.status === "error" ? "bg-[#fff0eb] text-[#a66049] hover:bg-[#fff0eb]" : "bg-[#edf1f2] text-[#687982] hover:bg-[#edf1f2]"}>{integration.status}</Badge></div>{integration.provider === "zapi" && integration.status !== "active" && <Button onClick={() => activate.mutate({ tenantId, integrationId: integration.id })} disabled={activate.isPending} size="sm" className="mt-4 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]"><QrCode className="mr-1.5 h-3.5 w-3.5" />Ativar webhook</Button>}{integration.provider === "meta" && integration.status !== "active" && <Button onClick={() => testMeta.mutate({ tenantId, integrationId: integration.id })} disabled={testMeta.isPending} size="sm" className="mt-4 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{testMeta.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}Testar conexão</Button>}{integration.provider === "erp_custom" && integration.status !== "active" && <Button onClick={() => testCustomErp.mutate({ tenantId, integrationId: integration.id })} disabled={testCustomErp.isPending} size="sm" className="mt-4 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{testCustomErp.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}Testar conexão</Button>}{integration.lastError && <p className="mt-3 text-xs text-[#a75e46]">{integration.lastError}</p>}</article>;
+  const label = integration.provider === "zapi" ? "Z-API" : integration.provider === "evolution" ? "Evolution API" : integration.provider === "erp_custom" ? "ERP personalizado" : integration.provider === "meta" ? "WhatsApp Cloud API" : "Dify";
+  return <article className="rounded-2xl border border-[#e1e9e4] bg-[#fbfcfb] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-[#435963]">{label} · {integration.name}</p><p className="mt-1 text-xs text-[#77878d]">{integration.secretConfigured ? "Credencial configurada" : "Sem credencial"}</p></div><Badge className={integration.status === "active" ? "bg-[#e8f5e5] text-[#4c805a] hover:bg-[#e8f5e5]" : integration.status === "error" ? "bg-[#fff0eb] text-[#a66049] hover:bg-[#fff0eb]" : "bg-[#edf1f2] text-[#687982] hover:bg-[#edf1f2]"}>{integration.status}</Badge></div>{integration.provider === "zapi" && <div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => activate.mutate({ tenantId, integrationId: integration.id })} disabled={activate.isPending} size="sm" className="rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]"><QrCode className="mr-1.5 h-3.5 w-3.5" />Configurar webhook</Button><Button onClick={() => setShowQr(value => !value)} disabled={integration.status !== "active"} size="sm" variant="outline" className="rounded-full">{showQr ? "Fechar QR Code" : "Conectar WhatsApp"}</Button></div>}{integration.provider === "evolution" && <Button onClick={() => setShowQr(value => !value)} size="sm" variant="outline" className="mt-4 rounded-full">{showQr ? "Fechar QR Code" : "Exibir QR Code"}</Button>}{integration.provider === "meta" && integration.status !== "active" && <Button onClick={() => testMeta.mutate({ tenantId, integrationId: integration.id })} disabled={testMeta.isPending} size="sm" className="mt-4 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{testMeta.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}Testar conexão</Button>}{showQr && <div className="mt-4 rounded-2xl border border-[#d9e7dc] bg-white p-4 text-center"><p className="text-sm font-bold text-[#405c57]">Abra o WhatsApp e leia o QR Code</p>{(qr.isLoading || evolutionQr.isLoading) ? <Loader2 className="mx-auto mt-4 h-6 w-6 animate-spin" /> : (qr.data?.image || evolutionQr.data?.image) ? <img src={qr.data?.image || evolutionQr.data?.image || ""} alt="QR Code para conectar o WhatsApp" className="mx-auto mt-4 h-56 w-56 rounded-xl border p-2" /> : <p className="mt-3 text-xs text-[#a75e46]">{qr.error?.message || evolutionQr.error?.message || "Não foi possível gerar o QR Code."}</p>}<p className="mt-3 text-xs text-[#718087]">No celular: WhatsApp → Dispositivos conectados → Conectar dispositivo.</p></div>}{integration.provider === "erp_custom" && integration.status !== "active" && <Button onClick={() => testCustomErp.mutate({ tenantId, integrationId: integration.id })} disabled={testCustomErp.isPending} size="sm" className="mt-4 rounded-full bg-[#203b47] text-white hover:bg-[#2d4f5b]">{testCustomErp.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}Testar conexão</Button>}{integration.lastError && <p className="mt-3 text-xs text-[#a75e46]">{integration.lastError}</p>}</article>;
 }
 
 function PrivateFiles({ tenantId, files, onChanged }: { tenantId: number; files: any[]; onChanged: () => void }) {

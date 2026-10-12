@@ -77,7 +77,8 @@ export const appRouter = router({
       if (!existing) await recordAccountAudit(ctx.user.id, "account.deletion_requested", { status: "pending", requestedAt: new Date().toISOString() }); return { success: true as const, alreadyRequested: Boolean(existing) };
     }),
     bootstrapAdmin: publicProcedure.input(z.object({ email: z.string().email(), activationCode: z.string().min(8), password: passwordSchema })).mutation(async ({ ctx, input }) => {
-      const configuredCode = process.env.LOCAL_AUTH_BOOTSTRAP_CODE; if (!configuredCode || input.activationCode !== configuredCode) throw new Error("Código de ativação inválido.");
+      const configuredCode = process.env.LOCAL_AUTH_BOOTSTRAP_CODE;
+      if (!configuredCode || input.activationCode !== configuredCode) throw new Error("Código de ativação inválido.");
       const db = await getDb(); if (!db) throw new Error("Banco de dados indisponível."); const email = normalizeEmail(input.email);
       const [user] = await db.select().from(users).where(and(eq(users.email, email), eq(users.role, "admin"))).limit(1);
       if (!user) throw new Error("Nenhum administrador existente foi encontrado com este e-mail.");
