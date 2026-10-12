@@ -8,9 +8,11 @@ Este deployment é destinado exclusivamente a testes e protótipos. A Evolution 
 2. O Render detectará o `render.yaml` na raiz. A cópia em `deploy/render/evolution-api.yaml` fica como referência organizada.
 3. No serviço criado, configure `SERVER_URL` com a URL pública HTTPS do próprio serviço, por exemplo `https://lyra-evolution-api.onrender.com`.
 4. Configure `DATABASE_CONNECTION_URI` com uma URL PostgreSQL externa (Neon, Supabase ou outro PostgreSQL compatível). A versão atual da Evolution API exige `DATABASE_PROVIDER=postgresql`; deixar esse valor vazio causa `Database provider invalid`.
+   - No Supabase, use o **Session Pooler** na porta `5432` para essa instalação, não o **Transaction Pooler** na porta `6543`. A Evolution executa `prisma migrate deploy` durante o boot, e o Transaction Pooler pode bloquear ou deixar essa etapa pendurada.
+   - A URL deve ter este formato, com a senha real preenchida somente no Render: `postgresql://postgres.<project-ref>:<password>@aws-1-us-west-2.pooler.supabase.com:5432/postgres`
 5. Copie o valor gerado de `AUTHENTICATION_API_KEY`.
 6. Confirme também `SERVER_PORT=8080`, `PORT=8080` e `HOST=0.0.0.0`; o Render usa a porta 8080 da Evolution API para detectar o serviço.
-5. No ambiente do Lyra, configure:
+7. No ambiente do Lyra, configure:
 
 ```env
 EVOLUTION_API_URL=https://lyra-evolution-api.onrender.com
