@@ -18,8 +18,6 @@ const productionRequiredEnvironment = [
   "JWT_SECRET",
   "TENANT_SECRETS_KEY",
   "LOCAL_AUTH_BOOTSTRAP_CODE",
-  "STRIPE_SECRET_KEY",
-  "STRIPE_WEBHOOK_SECRET",
 ] as const;
 
 export function validateEnvironment() {
@@ -45,7 +43,11 @@ export function validateEnvironment() {
   if (process.env.LOCAL_AUTH_BOOTSTRAP_CODE!.length < 16) {
     throw new Error("LOCAL_AUTH_BOOTSTRAP_CODE deve ter ao menos 16 caracteres em produção.");
   }
-  if (!process.env.STRIPE_SECRET_KEY!.startsWith("sk_") || !process.env.STRIPE_WEBHOOK_SECRET!.startsWith("whsec_")) {
+  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY?.trim() || process.env.STRIPE_WEBHOOK_SECRET?.trim());
+  if (stripeConfigured && (!process.env.STRIPE_SECRET_KEY?.startsWith("sk_") || !process.env.STRIPE_WEBHOOK_SECRET?.startsWith("whsec_"))) {
     throw new Error("As credenciais Stripe de produção devem usar os formatos sk_* e whsec_*.");
+  }
+  if (!stripeConfigured) {
+    console.warn("[Config] Stripe não configurado; os fluxos de cobrança permanecerão indisponíveis.");
   }
 }
