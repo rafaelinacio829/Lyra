@@ -27,6 +27,8 @@ services:
         value: postgresql
       - key: DATABASE_CONNECTION_URI
         sync: false
+      - key: DATABASE_CONNECTION_CLIENT_NAME
+        value: lyra-evolution-api
       - key: DATABASE_SAVE_DATA_INSTANCE
         value: "true"
       - key: DATABASE_SAVE_DATA_NEW_MESSAGE
