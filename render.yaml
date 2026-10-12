@@ -7,6 +7,12 @@ services:
       url: evoapicloud/evolution-api:latest
     healthCheckPath: /health
     envVars:
+      - key: SERVER_PORT
+        value: "8080"
+      - key: PORT
+        value: "8080"
+      - key: HOST
+        value: "0.0.0.0"
       - key: SERVER_URL
         sync: false
       - key: AUTHENTICATION_API_KEY

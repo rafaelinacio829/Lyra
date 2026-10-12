@@ -9,6 +9,7 @@ Este deployment é destinado exclusivamente a testes e protótipos. A Evolution 
 3. No serviço criado, configure `SERVER_URL` com a URL pública HTTPS do próprio serviço, por exemplo `https://lyra-evolution-api.onrender.com`.
 4. Configure `DATABASE_CONNECTION_URI` com uma URL PostgreSQL externa (Neon, Supabase ou outro PostgreSQL compatível). A versão atual da Evolution API exige `DATABASE_PROVIDER=postgresql`; deixar esse valor vazio causa `Database provider invalid`.
 5. Copie o valor gerado de `AUTHENTICATION_API_KEY`.
+6. Confirme também `SERVER_PORT=8080`, `PORT=8080` e `HOST=0.0.0.0`; o Render usa a porta 8080 da Evolution API para detectar o serviço.
 5. No ambiente do Lyra, configure:
 
 ```env
@@ -16,7 +17,7 @@ EVOLUTION_API_URL=https://lyra-evolution-api.onrender.com
 EVOLUTION_API_KEY=<o-valor-de-AUTHENTICATION_API_KEY>
 ```
 
-7. Reinicie o Lyra e abra **Integrações → WhatsApp via Evolution API → Criar instância de teste**.
+8. Reinicie o Lyra e abra **Integrações → WhatsApp via Evolution API → Criar instância de teste**.
 
 ## Limitações do plano gratuito
 
