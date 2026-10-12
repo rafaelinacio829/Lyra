@@ -11,8 +11,8 @@ Este deployment é destinado exclusivamente a testes e protótipos. A Evolution 
    - No Supabase, use o **Session Pooler** na porta `5432` para essa instalação, não o **Transaction Pooler** na porta `6543`. A Evolution executa `prisma migrate deploy` durante o boot, e o Transaction Pooler pode bloquear ou deixar essa etapa pendurada.
    - A URL deve ter este formato, com a senha real preenchida somente no Render: `postgresql://postgres.<project-ref>:<password>@aws-1-us-west-2.pooler.supabase.com:5432/postgres`
 5. Copie o valor gerado de `AUTHENTICATION_API_KEY`.
-6. Confirme também `SERVER_TYPE=http`, `SERVER_PORT=10000`, `PORT=10000` e `HOST=0.0.0.0`; o Render fornece a porta 10000 aos web services e a Evolution deve escutar essa porta. O health check usa `/`, uma rota disponível na API.
-7. Mantenha `LOG_LEVEL=INFO` durante o primeiro deploy para que o log mostre `HTTP - ON: 10000`; depois ele pode ser reduzido para `ERROR`.
+6. Confirme também `SERVER_TYPE=http`, `SERVER_PORT=8080`, `PORT=8080` e `HOST=0.0.0.0`; a imagem oficial expõe a porta 8080 e a Evolution deve escutar essa porta. O Render detecta e encaminha essa porta automaticamente. O health check usa `/`, uma rota disponível na API.
+7. Mantenha `LOG_LEVEL=INFO` durante o primeiro deploy para que o log mostre `HTTP - ON: 8080`; depois ele pode ser reduzido para `ERROR`.
 7. No ambiente do Lyra, configure:
 
 ```env
