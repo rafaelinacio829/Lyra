@@ -1,1 +1,0 @@
-ALTER TABLE `tenant_operating_rules` ADD `inbound_routing` varchar(24) DEFAULT 'ai_first' NOT NULL;

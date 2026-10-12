@@ -110,10 +110,10 @@ export const conversationRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       let [contact] = await db.select().from(contacts).where(and(eq(contacts.tenantId, input.tenantId), eq(contacts.phone, input.contactPhone))).limit(1);
       if (!contact) {
-        const [createdContact] = await db.insert(contacts).values({ tenantId: input.tenantId, name: input.contactName.trim(), phone: input.contactPhone.trim() }).$returningId();
+        const [createdContact] = await db.insert(contacts).values({ tenantId: input.tenantId, name: input.contactName.trim(), phone: input.contactPhone.trim() }).returning();
         [contact] = await db.select().from(contacts).where(eq(contacts.id, createdContact.id)).limit(1);
       }
-      const [createdConversation] = await db.insert(conversations).values({ tenantId: input.tenantId, contactId: contact.id, integrationConfigId: input.integrationId ?? null, queue: input.queue, assignedMembershipId: input.queue === "human" ? access.membershipId : null, latestMessagePreview: input.initialMessage.trim(), unreadCount: 1 }).$returningId();
+      const [createdConversation] = await db.insert(conversations).values({ tenantId: input.tenantId, contactId: contact.id, integrationConfigId: input.integrationId ?? null, queue: input.queue, assignedMembershipId: input.queue === "human" ? access.membershipId : null, latestMessagePreview: input.initialMessage.trim(), unreadCount: 1 }).returning();
       await db.insert(messages).values({ tenantId: input.tenantId, conversationId: createdConversation.id, direction: "inbound", body: input.initialMessage.trim(), channel: "whatsapp" });
       return { id: createdConversation.id };
     }),

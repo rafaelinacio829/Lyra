@@ -123,7 +123,7 @@ export const agentRouter = router({
           isActive: false,
           isDefault: activeCount?.value === 0,
         })
-        .$returningId();
+        .returning();
 
       await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.preset_installed", entityType: "agent", entityId: created.id, metadata: { presetId: preset.id, name: preset.name } });
       return { id: created.id, alreadyInstalled: false, nextSteps: preset.setupHint };
@@ -155,7 +155,7 @@ export const agentRouter = router({
         isActive: false,
         isDefault: activeCount?.value === 0,
       })
-      .$returningId();
+      .returning();
     await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "agent.created", entityType: "agent", entityId: created.id, metadata: { provider: input.provider, mode: input.mode } });
     return { id: created.id };
   }),

@@ -25,7 +25,7 @@ export const erpRouter = router({
     const pdf = await createDocumentPdf({ reference: input.reference, documentNumber: document.number, dueDate: document.dueDate, total: document.total, status: document.status });
     await assertTenantQuota(input.tenantId, "storage", pdf.length);
     const safeNumber = document.number.replace(/[^A-Za-z0-9_-]+/g, "-").slice(0, 60) || "documento"; const stored = await storagePut(`tenants/${input.tenantId}/erp/${safeNumber}.pdf`, pdf, "application/pdf");
-    const [created] = await db.insert(privateFiles).values({ tenantId: input.tenantId, storageKey: stored.key, originalName: `erp-${safeNumber}.pdf`, mimeType: "application/pdf", sizeBytes: pdf.length, classification: "financial_document", uploadedByMembershipId: access.membershipId }).$returningId();
+    const [created] = await db.insert(privateFiles).values({ tenantId: input.tenantId, storageKey: stored.key, originalName: `erp-${safeNumber}.pdf`, mimeType: "application/pdf", sizeBytes: pdf.length, classification: "financial_document", uploadedByMembershipId: access.membershipId }).returning();
     return { id: created.id, fileName: `erp-${safeNumber}.pdf` };
   }),
 });

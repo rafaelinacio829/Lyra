@@ -22,7 +22,7 @@ export async function reportOperationalIncident(input: { tenantId?: number | nul
     const integrationConfigId = input.integrationConfigId ?? null;
     const dedupeKey = createHash("sha256").update(`${tenantId ?? "platform"}:${integrationConfigId ?? "none"}:${input.source}:${input.summary}`).digest("hex");
     const now = new Date();
-    await db.insert(operationalIncidents).values({ tenantId, integrationConfigId, dedupeKey, source: input.source.slice(0, 80), severity: input.severity, summary: input.summary.slice(0, 240), detail: safeDetail(input.error), status: "open", firstSeenAt: now, lastSeenAt: now }).onDuplicateKeyUpdate({ set: { severity: input.severity, detail: safeDetail(input.error), status: "open", lastSeenAt: now, resolvedAt: null, resolvedByUserId: null, occurrences: sql`${operationalIncidents.occurrences} + 1` } });
+    await db.insert(operationalIncidents).values({ tenantId, integrationConfigId, dedupeKey, source: input.source.slice(0, 80), severity: input.severity, summary: input.summary.slice(0, 240), detail: safeDetail(input.error), status: "open", firstSeenAt: now, lastSeenAt: now }).onConflictDoUpdate({ target: operationalIncidents.dedupeKey, set: { severity: input.severity, detail: safeDetail(input.error), status: "open", lastSeenAt: now, resolvedAt: null, resolvedByUserId: null, occurrences: sql`${operationalIncidents.occurrences} + 1` } });
   } catch (reportingError) {
     console.error("[OperationalIncident] failed to persist incident", reportingError);
   }

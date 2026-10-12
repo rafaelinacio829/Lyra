@@ -15,7 +15,7 @@ describe("integrations.saveZapi multicanal", () => {
   it("salva duas conexões nomeadas no mesmo tenant sem misturar suas credenciais", async () => {
     const select = vi.fn().mockReturnValueOnce(chain([])).mockReturnValueOnce(chain([{ id: 11 }])).mockReturnValueOnce(chain([])).mockReturnValueOnce(chain([{ id: 12 }]));
     const values = vi.fn();
-    getDb.mockResolvedValue({ select, insert: vi.fn(() => ({ values: (value: unknown) => { values(value); return { onDuplicateKeyUpdate: vi.fn().mockResolvedValue(undefined) }; } })) });
+    getDb.mockResolvedValue({ select, insert: vi.fn(() => ({ values: (value: unknown) => { values(value); return { onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) }; } })) });
     const caller = integrationRouter.createCaller(context);
     await caller.saveZapi({ tenantId: 9, name: "Vendas", instanceId: "inst-vendas", instanceToken: "token-12345678", clientToken: "client-12345678" });
     await caller.saveZapi({ tenantId: 9, name: "Suporte", instanceId: "inst-suporte", instanceToken: "token-87654321", clientToken: "client-87654321" });

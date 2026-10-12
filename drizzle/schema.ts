@@ -1,53 +1,54 @@
 import {
   boolean,
   index,
-  int,
-  json,
-  mysqlEnum,
-  mysqlTable,
+  integer,
+  serial,
+  jsonb,
+  pgEnum,
+  pgTable,
   text,
   timestamp,
   uniqueIndex,
   varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
 
-export const platformRole = mysqlEnum("role", ["user", "admin"]);
-export const tenantStatus = mysqlEnum("status", ["trial", "active", "suspended", "cancelled"]);
-export const tenantRole = mysqlEnum("role", ["tenant_admin", "agent"]);
-export const memberPresence = mysqlEnum("presence", ["online", "busy", "away", "offline"]);
-export const subscriptionStatus = mysqlEnum("status", ["trialing", "active", "past_due", "paused", "cancelled"]);
-export const billingMethod = mysqlEnum("billing_method", ["stripe", "pix", "invoice", "bank_transfer", "manual"]);
-export const subscriptionPaymentMethod = mysqlEnum("payment_method", ["automatic", "card", "boleto"]);
-export const capacityAddonType = mysqlEnum("type", ["members", "agents", "messages"]);
-export const capacityAddonStatus = mysqlEnum("status", ["pending", "active", "past_due", "cancelled"]);
-export const agentProvider = mysqlEnum("provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
-export const agentMode = mysqlEnum("mode", ["chat", "streaming", "workflow", "completion"]);
-export const conversationQueue = mysqlEnum("queue", ["ai", "human", "resolved"]);
-export const messageDirection = mysqlEnum("direction", ["inbound", "outbound", "internal_note"]);
-export const fileClassification = mysqlEnum("classification", ["media", "invoice", "financial_document", "conversation_export"]);
-export const integrationProvider = mysqlEnum("provider", ["zapi", "evolution", "meta", "dify", "erp_custom"]);
-export const integrationStatus = mysqlEnum("status", ["draft", "verified", "active", "error", "disabled"]);
+export const platformRole = pgEnum("platform_role", ["user", "admin"]);
+export const tenantStatus = pgEnum("tenant_status", ["trial", "active", "suspended", "cancelled"]);
+export const tenantRole = pgEnum("tenant_role", ["tenant_admin", "agent"]);
+export const memberPresence = pgEnum("member_presence", ["online", "busy", "away", "offline"]);
+export const subscriptionStatus = pgEnum("subscription_status", ["trialing", "active", "past_due", "paused", "cancelled"]);
+export const billingMethod = pgEnum("billing_method_enum", ["stripe", "pix", "invoice", "bank_transfer", "manual"]);
+export const subscriptionPaymentMethod = pgEnum("subscription_payment_method", ["automatic", "card", "boleto"]);
+export const capacityAddonType = pgEnum("capacity_addon_type", ["members", "agents", "messages"]);
+export const capacityAddonStatus = pgEnum("capacity_addon_status", ["pending", "active", "past_due", "cancelled"]);
+export const agentProvider = pgEnum("agent_provider", ["dify", "openai", "anthropic", "gemini", "adk", "langgraph", "flowise", "langflow", "n8n", "native", "other"]);
+export const agentMode = pgEnum("agent_mode", ["chat", "streaming", "workflow", "completion"]);
+export const conversationQueue = pgEnum("conversation_queue", ["ai", "human", "resolved"]);
+export const messageDirection = pgEnum("message_direction", ["inbound", "outbound", "internal_note"]);
+export const fileClassification = pgEnum("file_classification", ["media", "invoice", "financial_document", "conversation_export"]);
+export const integrationProvider = pgEnum("integration_provider", ["zapi", "evolution", "meta", "dify", "erp_custom"]);
+export const integrationStatus = pgEnum("integration_status", ["draft", "verified", "active", "error", "disabled"]);
 
 /** Core identity table managed by Manus OAuth. */
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   openId: varchar("open_id", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("login_method", { length: 64 }),
   passwordHash: varchar("password_hash", { length: 255 }),
   passwordUpdatedAt: timestamp("password_updated_at"),
-  role: platformRole.notNull().default("user"),
+  role: platformRole("role").notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   lastSignedIn: timestamp("last_signed_in").defaultNow().notNull(),
 });
 
-export const authSessions = mysqlTable(
+export const authSessions = pgTable(
   "auth_sessions",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
     expiresAt: timestamp("expires_at").notNull(),
     revokedAt: timestamp("revoked_at"),
@@ -57,13 +58,13 @@ export const authSessions = mysqlTable(
   table => [index("auth_session_user_idx").on(table.userId, table.expiresAt)]
 );
 
-export const accountRecoveryCodes = mysqlTable(
+export const accountRecoveryCodes = pgTable(
   "account_recovery_codes",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     codeHash: varchar("code_hash", { length: 128 }).notNull().unique(),
-    createdByUserId: int("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at").notNull(),
     usedAt: timestamp("used_at"),
     revokedAt: timestamp("revoked_at"),
@@ -72,55 +73,55 @@ export const accountRecoveryCodes = mysqlTable(
   table => [index("account_recovery_user_idx").on(table.userId, table.expiresAt)]
 );
 
-export const plans = mysqlTable("plans", {
-  id: int("id").autoincrement().primaryKey(),
+export const plans = pgTable("plans", {
+  id: serial("id").primaryKey(),
   code: varchar("code", { length: 40 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
-  monthlyPriceCents: int("monthly_price_cents").notNull(),
-  annualPriceCents: int("annual_price_cents").notNull(),
-  includedMembers: int("included_members").notNull(),
-  includedConversations: int("included_conversations").notNull(),
-  includedMessages: int("included_messages").notNull(),
-  includedAgents: int("included_agents").notNull(),
-  includedStorageMb: int("included_storage_mb").notNull(),
-  includedIntegrations: int("included_integrations").notNull(),
+  monthlyPriceCents: integer("monthly_price_cents").notNull(),
+  annualPriceCents: integer("annual_price_cents").notNull(),
+  includedMembers: integer("included_members").notNull(),
+  includedConversations: integer("included_conversations").notNull(),
+  includedMessages: integer("included_messages").notNull(),
+  includedAgents: integer("included_agents").notNull(),
+  includedStorageMb: integer("included_storage_mb").notNull(),
+  includedIntegrations: integer("included_integrations").notNull(),
   isPublic: boolean("is_public").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
-export const tenants = mysqlTable(
+export const tenants = pgTable(
   "tenants",
   {
-    id: int("id").autoincrement().primaryKey(),
+    id: serial("id").primaryKey(),
     name: varchar("name", { length: 180 }).notNull(),
     slug: varchar("slug", { length: 80 }).notNull().unique(),
     primaryEmail: varchar("primary_email", { length: 320 }).notNull(),
-    status: tenantStatus.notNull().default("trial"),
+    status: tenantStatus("status").notNull().default("trial"),
     trialEndsAt: timestamp("trial_ends_at"),
     timezone: varchar("timezone", { length: 64 }).notNull().default("America/Sao_Paulo"),
     brandColor: varchar("brand_color", { length: 16 }).notNull().default("#4F46E5"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [index("tenant_status_idx").on(table.status)]
 );
 
-export const tenantMemberships = mysqlTable(
+export const tenantMemberships = pgTable(
   "tenant_memberships",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    role: tenantRole.notNull().default("agent"),
-    presence: memberPresence.notNull().default("offline"),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: tenantRole("role").notNull().default("agent"),
+    presence: memberPresence("presence").notNull().default("offline"),
     mfaEnabled: boolean("mfa_enabled").notNull().default(false),
     mfaSecretCiphertext: text("mfa_secret_ciphertext"),
     isActive: boolean("is_active").notNull().default(true),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [
     uniqueIndex("tenant_member_unique").on(table.tenantId, table.userId),
@@ -128,48 +129,48 @@ export const tenantMemberships = mysqlTable(
   ]
 );
 
-export const teams = mysqlTable(
+export const teams = pgTable(
   "teams",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
     description: text("description"),
-    leadMembershipId: int("lead_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    leadMembershipId: integer("lead_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [uniqueIndex("team_name_per_tenant_unique").on(table.tenantId, table.name)]
 );
 
-export const teamMembers = mysqlTable(
+export const teamMembers = pgTable(
   "team_members",
   {
-    id: int("id").autoincrement().primaryKey(),
-    teamId: int("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
-    membershipId: int("membership_id").notNull().references(() => tenantMemberships.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    membershipId: integer("membership_id").notNull().references(() => tenantMemberships.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   table => [uniqueIndex("team_membership_unique").on(table.teamId, table.membershipId)]
 );
 
-export const subscriptions = mysqlTable(
+export const subscriptions = pgTable(
   "subscriptions",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    planId: int("plan_id").notNull().references(() => plans.id, { onDelete: "restrict" }),
-    status: subscriptionStatus.notNull().default("trialing"),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => plans.id, { onDelete: "restrict" }),
+    status: subscriptionStatus("status").notNull().default("trialing"),
     providerCustomerId: varchar("provider_customer_id", { length: 255 }),
     providerSubscriptionId: varchar("provider_subscription_id", { length: 255 }),
-    billingMethod: billingMethod.notNull().default("stripe"),
-    paymentMethod: subscriptionPaymentMethod.notNull().default("automatic"),
+    billingMethod: billingMethod("billing_method").notNull().default("stripe"),
+    paymentMethod: subscriptionPaymentMethod("payment_method").notNull().default("automatic"),
     billingReference: varchar("billing_reference", { length: 255 }),
     billingInterval: varchar("billing_interval", { length: 16 }).notNull().default("monthly"),
     currentPeriodEndsAt: timestamp("current_period_ends_at"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [
     uniqueIndex("subscription_tenant_unique").on(table.tenantId),
@@ -178,70 +179,70 @@ export const subscriptions = mysqlTable(
   ]
 );
 
-export const capacityAddons = mysqlTable(
+export const capacityAddons = pgTable(
   "capacity_addons",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    type: capacityAddonType.notNull(),
-    quantity: int("quantity").notNull(),
-    unitPriceCents: int("unit_price_cents").notNull(),
-    status: capacityAddonStatus.notNull().default("pending"),
-    billingMethod: billingMethod.notNull().default("stripe"),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    type: capacityAddonType("type").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    status: capacityAddonStatus("status").notNull().default("pending"),
+    billingMethod: billingMethod("billing_method").notNull().default("stripe"),
     providerCheckoutSessionId: varchar("provider_checkout_session_id", { length: 255 }).unique(),
     providerSubscriptionId: varchar("provider_subscription_id", { length: 255 }),
     startsAt: timestamp("starts_at"),
     endsAt: timestamp("ends_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [index("capacity_addon_tenant_status_idx").on(table.tenantId, table.status), index("capacity_addon_type_idx").on(table.tenantId, table.type)]
 );
 
-export const usageCounters = mysqlTable(
+export const usageCounters = pgTable(
   "usage_counters",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     periodKey: varchar("period_key", { length: 7 }).notNull(),
-    activeMembers: int("active_members").notNull().default(0),
-    conversations: int("conversations").notNull().default(0),
-    messages: int("messages").notNull().default(0),
-    activeAgents: int("active_agents").notNull().default(0),
-    activeIntegrations: int("active_integrations").notNull().default(0),
-    storageBytes: int("storage_bytes").notNull().default(0),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    activeMembers: integer("active_members").notNull().default(0),
+    conversations: integer("conversations").notNull().default(0),
+    messages: integer("messages").notNull().default(0),
+    activeAgents: integer("active_agents").notNull().default(0),
+    activeIntegrations: integer("active_integrations").notNull().default(0),
+    storageBytes: integer("storage_bytes").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [uniqueIndex("usage_tenant_period_unique").on(table.tenantId, table.periodKey)]
 );
 
-export const tenantCostEvents = mysqlTable(
+export const tenantCostEvents = pgTable(
   "tenant_cost_events",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    integrationConfigId: int("integration_config_id"),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    integrationConfigId: integer("integration_config_id"),
     category: varchar("category", { length: 40 }).notNull(),
     provider: varchar("provider", { length: 40 }),
-    units: int("units").notNull().default(1),
-    costCents: int("cost_cents").notNull().default(0),
-    metadata: json("metadata"),
+    units: integer("units").notNull().default(1),
+    costCents: integer("cost_cents").notNull().default(0),
+    metadata: jsonb("metadata"),
     occurredAt: timestamp("occurred_at").defaultNow().notNull(),
   },
   table => [index("tenant_cost_events_tenant_date_idx").on(table.tenantId, table.occurredAt), index("tenant_cost_events_integration_idx").on(table.integrationConfigId, table.occurredAt)]
 );
 
-export const tenantInvites = mysqlTable(
+export const tenantInvites = pgTable(
   "tenant_invites",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     email: varchar("email", { length: 320 }).notNull(),
-    role: tenantRole.notNull().default("agent"),
+    role: tenantRole("role").notNull().default("agent"),
     tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
     expiresAt: timestamp("expires_at").notNull(),
     acceptedAt: timestamp("accepted_at"),
-    createdByUserId: int("created_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   table => [
@@ -250,69 +251,69 @@ export const tenantInvites = mysqlTable(
   ]
 );
 
-export const tenantOperatingRules = mysqlTable(
+export const tenantOperatingRules = pgTable(
   "tenant_operating_rules",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     isEnabled: boolean("is_enabled").notNull().default(true),
     timezone: varchar("timezone", { length: 80 }).notNull().default("America/Sao_Paulo"),
-    businessHours: json("business_hours"),
-    firstResponseSlaMinutes: int("first_response_sla_minutes").notNull().default(20),
+    businessHours: jsonb("business_hours"),
+    firstResponseSlaMinutes: integer("first_response_sla_minutes").notNull().default(20),
     inboundRouting: varchar("inbound_routing", { length: 24 }).notNull().default("ai_first"),
-    defaultWhatsAppIntegrationId: int("default_whatsapp_integration_id"),
+    defaultWhatsAppIntegrationId: integer("default_whatsapp_integration_id"),
     handoffOutsideBusinessHours: boolean("handoff_outside_business_hours").notNull().default(false),
     autoEscalateUnassigned: boolean("auto_escalate_unassigned").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [uniqueIndex("tenant_operating_rules_tenant_unique").on(table.tenantId)]
 );
 
-export const agentProfiles = mysqlTable(
+export const agentProfiles = pgTable(
   "agent_profiles",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 160 }).notNull(),
     purpose: varchar("purpose", { length: 280 }).notNull(),
-    provider: agentProvider.notNull().default("dify"),
-    mode: agentMode.notNull().default("chat"),
+    provider: agentProvider("provider").notNull().default("dify"),
+    mode: agentMode("mode").notNull().default("chat"),
     apiBaseUrl: varchar("api_base_url", { length: 500 }),
     externalAppId: varchar("external_app_id", { length: 255 }),
     credentialCiphertext: text("credential_ciphertext"),
     credentialFingerprint: varchar("credential_fingerprint", { length: 80 }),
     instructions: text("instructions"),
-    handoffKeywords: json("handoff_keywords"),
-    inputSchema: json("input_schema"),
-    fallbackAgentId: int("fallback_agent_id"),
+    handoffKeywords: jsonb("handoff_keywords"),
+    inputSchema: jsonb("input_schema"),
+    fallbackAgentId: integer("fallback_agent_id"),
     isActive: boolean("is_active").notNull().default(false),
     isDefault: boolean("is_default").notNull().default(false),
     lastVerifiedAt: timestamp("last_verified_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [index("agent_tenant_active_idx").on(table.tenantId, table.isActive), index("agent_fallback_idx").on(table.fallbackAgentId)]
 );
 
-export const integrationConfigs = mysqlTable(
+export const integrationConfigs = pgTable(
   "integration_configs",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    provider: integrationProvider.notNull(),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    provider: integrationProvider("provider").notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     channelIdentifier: varchar("channel_identifier", { length: 120 }),
     channelPurpose: varchar("channel_purpose", { length: 40 }).notNull().default("general"),
-    status: integrationStatus.notNull().default("draft"),
-    publicConfig: json("public_config"),
+    status: integrationStatus("status").notNull().default("draft"),
+    publicConfig: jsonb("public_config"),
     secretCiphertext: text("secret_ciphertext"),
     secretFingerprint: varchar("secret_fingerprint", { length: 80 }),
     webhookSecretCiphertext: text("webhook_secret_ciphertext"),
     lastVerifiedAt: timestamp("last_verified_at"),
     lastError: text("last_error"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [
     uniqueIndex("integration_name_per_tenant_unique").on(table.tenantId, table.provider, table.name),
@@ -320,64 +321,64 @@ export const integrationConfigs = mysqlTable(
   ]
 );
 
-export const operationalIncidents = mysqlTable(
+export const operationalIncidents = pgTable(
   "operational_incidents",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
-    integrationConfigId: int("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    integrationConfigId: integer("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
     dedupeKey: varchar("dedupe_key", { length: 180 }).notNull().unique(),
     source: varchar("source", { length: 80 }).notNull(),
     severity: varchar("severity", { length: 16 }).notNull().default("warning"),
     summary: varchar("summary", { length: 240 }).notNull(),
     detail: text("detail"),
     status: varchar("status", { length: 24 }).notNull().default("open"),
-    occurrences: int("occurrences").notNull().default(1),
+    occurrences: integer("occurrences").notNull().default(1),
     firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
     lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
     resolvedAt: timestamp("resolved_at"),
-    resolvedByUserId: int("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [index("operational_incident_tenant_idx").on(table.tenantId, table.status, table.lastSeenAt), index("operational_incident_status_idx").on(table.status, table.lastSeenAt)]
 );
 
-export const contacts = mysqlTable(
+export const contacts = pgTable(
   "contacts",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     phone: varchar("phone", { length: 50 }).notNull(),
     email: varchar("email", { length: 320 }),
     company: varchar("company", { length: 255 }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [uniqueIndex("contact_phone_per_tenant_unique").on(table.tenantId, table.phone)]
 );
 
-export const conversations = mysqlTable(
+export const conversations = pgTable(
   "conversations",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    contactId: int("contact_id").references(() => contacts.id, { onDelete: "set null" }),
-    integrationConfigId: int("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
-    queue: conversationQueue.notNull().default("ai"),
-    assignedMembershipId: int("assigned_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
-    agentProfileId: int("agent_profile_id").references(() => agentProfiles.id, { onDelete: "set null" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    integrationConfigId: integer("integration_config_id").references(() => integrationConfigs.id, { onDelete: "set null" }),
+    queue: conversationQueue("queue").notNull().default("ai"),
+    assignedMembershipId: integer("assigned_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    agentProfileId: integer("agent_profile_id").references(() => agentProfiles.id, { onDelete: "set null" }),
     externalConversationId: varchar("external_conversation_id", { length: 255 }),
     latestMessagePreview: varchar("latest_message_preview", { length: 500 }),
-    unreadCount: int("unread_count").notNull().default(0),
-    tags: json("tags"),
+    unreadCount: integer("unread_count").notNull().default(0),
+    tags: jsonb("tags"),
     firstResponseAt: timestamp("first_response_at"),
     resolvedAt: timestamp("resolved_at"),
     reopenedAt: timestamp("reopened_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   },
   table => [
     index("conversation_tenant_queue_idx").on(table.tenantId, table.queue, table.updatedAt),
@@ -386,15 +387,15 @@ export const conversations = mysqlTable(
   ]
 );
 
-export const conversationEscalations = mysqlTable(
+export const conversationEscalations = pgTable(
   "conversation_escalations",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    conversationId: int("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
     reason: varchar("reason", { length: 80 }).notNull(),
     status: varchar("status", { length: 32 }).notNull().default("pending"),
-    acknowledgedMembershipId: int("acknowledged_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    acknowledgedMembershipId: integer("acknowledged_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
     escalatedAt: timestamp("escalated_at").defaultNow().notNull(),
     acknowledgedAt: timestamp("acknowledged_at"),
     resolvedAt: timestamp("resolved_at"),
@@ -402,19 +403,19 @@ export const conversationEscalations = mysqlTable(
   table => [uniqueIndex("escalation_conversation_unique").on(table.conversationId), index("escalation_tenant_status_idx").on(table.tenantId, table.status, table.escalatedAt)]
 );
 
-export const messages = mysqlTable(
+export const messages = pgTable(
   "messages",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    conversationId: int("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
-    authorMembershipId: int("author_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
-    direction: messageDirection.notNull(),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+    authorMembershipId: integer("author_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    direction: messageDirection("direction").notNull(),
     channel: varchar("channel", { length: 32 }).notNull().default("whatsapp"),
     providerMessageId: varchar("provider_message_id", { length: 255 }),
     body: text("body").notNull(),
-    mediaFileId: int("media_file_id"),
-    reactions: json("reactions"),
+    mediaFileId: integer("media_file_id"),
+    reactions: jsonb("reactions"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   table => [
@@ -423,34 +424,34 @@ export const messages = mysqlTable(
   ]
 );
 
-export const privateFiles = mysqlTable(
+export const privateFiles = pgTable(
   "private_files",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    conversationId: int("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
     storageKey: varchar("storage_key", { length: 600 }).notNull().unique(),
     originalName: varchar("original_name", { length: 255 }).notNull(),
     mimeType: varchar("mime_type", { length: 160 }).notNull(),
-    sizeBytes: int("size_bytes").notNull(),
-    classification: fileClassification.notNull(),
-    uploadedByMembershipId: int("uploaded_by_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
+    sizeBytes: integer("size_bytes").notNull(),
+    classification: fileClassification("classification").notNull(),
+    uploadedByMembershipId: integer("uploaded_by_membership_id").references(() => tenantMemberships.id, { onDelete: "set null" }),
     retentionEndsAt: timestamp("retention_ends_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   table => [index("file_tenant_classification_idx").on(table.tenantId, table.classification)]
 );
 
-export const auditLogs = mysqlTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
-    id: int("id").autoincrement().primaryKey(),
-    tenantId: int("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
-    actorUserId: int("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
     action: varchar("action", { length: 120 }).notNull(),
     entityType: varchar("entity_type", { length: 80 }).notNull(),
     entityId: varchar("entity_id", { length: 80 }),
-    metadata: json("metadata"),
+    metadata: jsonb("metadata"),
     ipAddress: varchar("ip_address", { length: 80 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

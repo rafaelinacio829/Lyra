@@ -25,7 +25,7 @@ const context = {
 function createDb(selectResults: unknown[][]) {
   const insert = vi.fn(() => ({
     values: vi.fn(() => ({
-      $returningId: vi.fn(() => Promise.resolve([{ id: 77 }])),
+      returning: vi.fn(() => Promise.resolve([{ id: 77 }])),
     })),
   }));
   const select = vi.fn(() => {

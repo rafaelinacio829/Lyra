@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createConnection, type Connection } from "mysql2/promise";
-import { drizzle } from "drizzle-orm/mysql2";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ import { handleZapiWebhook } from "./webhooks/zapi";
 const describeIntegration = process.env.FLOW_ONE_DB_INTEGRATION_TESTS === "1" ? describe : describe.skip;
 
 describeIntegration("conversation and reporting integration", () => {
-  let connection: Connection;
+  let connection: Pool;
   let db: ReturnType<typeof drizzle>;
   let tenantId: number;
   let contactId: number;
@@ -40,8 +40,8 @@ describeIntegration("conversation and reporting integration", () => {
   beforeEach(async () => {
     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL é necessária para os testes de integração do banco.");
     vi.clearAllMocks();
-    connection = await createConnection(process.env.DATABASE_URL);
-    await connection.beginTransaction();
+    connection = new Pool({ connectionString: process.env.DATABASE_URL });
+    await connection.query("BEGIN");
     db = drizzle(connection);
     mocks.getDb.mockResolvedValue(db);
     mocks.requireTenantAccess.mockResolvedValue({ membershipId: 1, role: "tenant_admin" });
@@ -50,17 +50,17 @@ describeIntegration("conversation and reporting integration", () => {
     mocks.runDifyForInboundMessage.mockResolvedValue({ replied: true });
 
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const [tenant] = await db.insert(tenants).values({ name: `Integração ${suffix}`, slug: `integration-${suffix}`, primaryEmail: `integration-${suffix}@flowone.test`, status: "active" }).$returningId();
+    const [tenant] = await db.insert(tenants).values({ name: `Integração ${suffix}`, slug: `integration-${suffix}`, primaryEmail: `integration-${suffix}@flowone.test`, status: "active" }).returning();
     tenantId = tenant.id;
     mocks.validateZapiWebhook.mockResolvedValue({ tenantId });
-    const [contact] = await db.insert(contacts).values({ tenantId, name: "Contato de integração", phone: `5511${suffix.replace(/\D/g, "").slice(-8).padStart(8, "0")}` }).$returningId();
+    const [contact] = await db.insert(contacts).values({ tenantId, name: "Contato de integração", phone: `5511${suffix.replace(/\D/g, "").slice(-8).padStart(8, "0")}` }).returning();
     contactId = contact.id;
-    const [conversation] = await db.insert(conversations).values({ tenantId, contactId, queue: "resolved", latestMessagePreview: "Conversa resolvida", unreadCount: 0, resolvedAt: new Date() }).$returningId();
+    const [conversation] = await db.insert(conversations).values({ tenantId, contactId, queue: "resolved", latestMessagePreview: "Conversa resolvida", unreadCount: 0, resolvedAt: new Date() }).returning();
     conversationId = conversation.id;
   });
 
   afterEach(async () => {
-    await connection.rollback();
+    await connection.query("ROLLBACK");
     await connection.end();
   });
 

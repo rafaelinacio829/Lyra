@@ -66,7 +66,7 @@ export const teamRouter = router({
         tokenHash,
         expiresAt,
         createdByUserId: ctx.user.id,
-      }).onDuplicateKeyUpdate({ set: { role: input.role, tokenHash, expiresAt, acceptedAt: null, createdByUserId: ctx.user.id } });
+      }).onConflictDoUpdate({ target: [tenantInvites.tenantId, tenantInvites.email], set: { role: input.role, tokenHash, expiresAt, acceptedAt: null, createdByUserId: ctx.user.id } });
 
       return { email: input.email.toLowerCase(), expiresAt };
     }),
@@ -88,7 +88,7 @@ export const teamRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const result = await db.update(tenantMemberships).set({ role: input.role }).where(and(eq(tenantMemberships.id, input.membershipId), eq(tenantMemberships.tenantId, input.tenantId)));
-      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Membro não encontrado nesta empresa." });
+      if (!(result.rowCount ?? (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows)) throw new TRPCError({ code: "NOT_FOUND", message: "Membro não encontrado nesta empresa." });
       return { success: true };
     }),
 
@@ -99,7 +99,7 @@ export const teamRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const result = await db.update(tenantMemberships).set({ isActive: input.isActive, presence: "offline" }).where(and(eq(tenantMemberships.id, input.membershipId), eq(tenantMemberships.tenantId, input.tenantId)));
-      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Membro não encontrado nesta empresa." });
+      if (!(result.rowCount ?? (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows)) throw new TRPCError({ code: "NOT_FOUND", message: "Membro não encontrado nesta empresa." });
       return { success: true };
     }),
 
@@ -122,7 +122,7 @@ export const teamRouter = router({
       await requireTenantAdmin(ctx.user.id, input.tenantId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-      const [created] = await db.insert(teams).values({ tenantId: input.tenantId, name: input.name.trim(), description: input.description?.trim() || null }).$returningId();
+      const [created] = await db.insert(teams).values({ tenantId: input.tenantId, name: input.name.trim(), description: input.description?.trim() || null }).returning();
       return { id: created.id };
     }),
 
@@ -133,7 +133,7 @@ export const teamRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const result = await db.update(teams).set({ name: input.name.trim(), description: input.description?.trim() || null }).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId)));
-      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
+      if (!(result.rowCount ?? (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows)) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
       return { success: true };
     }),
 
@@ -144,7 +144,7 @@ export const teamRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
       const result = await db.delete(teams).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId)));
-      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
+      if (!(result.rowCount ?? (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows)) throw new TRPCError({ code: "NOT_FOUND", message: "Time não encontrado nesta empresa." });
       return { success: true };
     }),
 
@@ -157,7 +157,7 @@ export const teamRouter = router({
       const [team] = await db.select({ id: teams.id }).from(teams).where(and(eq(teams.id, input.teamId), eq(teams.tenantId, input.tenantId))).limit(1);
       const [member] = await db.select({ id: tenantMemberships.id }).from(tenantMemberships).where(and(eq(tenantMemberships.id, input.membershipId), eq(tenantMemberships.tenantId, input.tenantId))).limit(1);
       if (!team || !member) throw new TRPCError({ code: "NOT_FOUND", message: "Time ou membro não encontrado nesta empresa." });
-      await db.insert(teamMembers).values({ teamId: team.id, membershipId: member.id }).onDuplicateKeyUpdate({ set: { membershipId: member.id } });
+      await db.insert(teamMembers).values({ teamId: team.id, membershipId: member.id }).onConflictDoUpdate({ target: [teamMembers.teamId, teamMembers.membershipId], set: { membershipId: member.id } });
       return { success: true };
     }),
 

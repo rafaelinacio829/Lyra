@@ -19,7 +19,7 @@ describe("integrations.whatsappChannels", () => {
     expect(result.channels[0]).toMatchObject({ id: 21, name: "Vendas", channelIdentifier: "+55 11 99999-0000", channelPurpose: "sales", isDefault: true, totalConversations: 12, pendingConversations: 3, avgFirstResponseMinutes: 4.5 });
   });
   it("aceita somente um canal ativo do tenant como padrão", async () => {
-    const insert = vi.fn(() => ({ values: () => ({ onDuplicateKeyUpdate: vi.fn().mockResolvedValue(undefined) }) }));
+    const insert = vi.fn(() => ({ values: () => ({ onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) }) }));
     getDb.mockResolvedValue({ select: vi.fn(() => chain([{ id: 22, name: "Suporte", provider: "zapi" }])), insert });
     await expect(integrationRouter.createCaller(context).setDefaultWhatsAppChannel({ tenantId: 7, integrationId: 22 })).resolves.toMatchObject({ success: true, integrationId: 22 });
     expect(recordTenantAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "integration.whatsapp_default_changed", tenantId: 7, entityId: 22 }));

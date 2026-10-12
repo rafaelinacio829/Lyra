@@ -19,7 +19,7 @@ export const contactRouter = router({
     await requireTenantAccess(ctx.user.id, input.tenantId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-    const [created] = await db.insert(contacts).values({ tenantId: input.tenantId, name: input.name.trim(), phone: input.phone.trim(), email: input.email?.trim() || null, company: input.company?.trim() || null, notes: input.notes?.trim() || null }).$returningId();
+    const [created] = await db.insert(contacts).values({ tenantId: input.tenantId, name: input.name.trim(), phone: input.phone.trim(), email: input.email?.trim() || null, company: input.company?.trim() || null, notes: input.notes?.trim() || null }).returning();
     return { id: created.id };
   }),
   update: protectedProcedure.input(contactInput.extend({ contactId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
@@ -36,7 +36,7 @@ export const contactRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
     const result = await db.delete(contacts).where(and(eq(contacts.id, input.contactId), eq(contacts.tenantId, input.tenantId)));
-    if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Contato não encontrado nesta empresa." });
+    if (!result.rowCount) throw new TRPCError({ code: "NOT_FOUND", message: "Contato não encontrado nesta empresa." });
     return { success: true };
   }),
 });

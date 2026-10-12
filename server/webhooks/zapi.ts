@@ -44,13 +44,13 @@ export async function handleProviderWebhook(req: Request, res: Response, provide
     let [contact] = await db.select().from(contacts).where(and(eq(contacts.tenantId, config.tenantId), eq(contacts.phone, phone))).limit(1);
     if (!contact) {
       const name = stringValue(payload.senderName) || stringValue(payload.chatName) || phone;
-      const [created] = await db.insert(contacts).values({ tenantId: config.tenantId, name, phone }).$returningId();
+      const [created] = await db.insert(contacts).values({ tenantId: config.tenantId, name, phone }).returning();
       [contact] = await db.select().from(contacts).where(eq(contacts.id, created.id)).limit(1);
     }
     let [conversation] = await db.select().from(conversations).where(and(eq(conversations.tenantId, config.tenantId), eq(conversations.contactId, contact.id), eq(conversations.integrationConfigId, config.id), inArray(conversations.queue, ["ai", "human", "resolved"]))).orderBy(desc(conversations.updatedAt)).limit(1);
     if (!conversation) {
       await assertTenantQuota(config.tenantId, "conversations");
-      const [created] = await db.insert(conversations).values({ tenantId: config.tenantId, contactId: contact.id, integrationConfigId: config.id, queue: "ai", latestMessagePreview: messageText(payload), unreadCount: 1 }).$returningId();
+      const [created] = await db.insert(conversations).values({ tenantId: config.tenantId, contactId: contact.id, integrationConfigId: config.id, queue: "ai", latestMessagePreview: messageText(payload), unreadCount: 1 }).returning();
       [conversation] = await db.select().from(conversations).where(eq(conversations.id, created.id)).limit(1);
     } else if (shouldReopenConversation(conversation.queue)) {
       await db.update(conversations).set({ ...transitionConversation(conversation.queue, "ai", new Date()), assignedMembershipId: null, updatedAt: new Date() }).where(eq(conversations.id, conversation.id));

@@ -10,7 +10,7 @@ O `render.yaml` cria dois serviços independentes:
 1. No Render, abra **New > Blueprint** e selecione o repositório do Lyra.
 2. O Render vai detectar o `render.yaml` na raiz e criar os dois serviços.
 3. No serviço `lyra`, preencha os segredos marcados como `sync: false`:
-   - `DATABASE_URL`: URI MySQL/MariaDB acessível publicamente;
+   - `DATABASE_URL`: URI PostgreSQL (Supabase/Render) acessível publicamente;
    - `OWNER_EMAIL`: e-mail do administrador inicial;
    - `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`;
    - `EVOLUTION_API_KEY`: o mesmo valor de `AUTHENTICATION_API_KEY` do serviço Evolution.
@@ -36,7 +36,7 @@ As instâncias Evolution criadas pelo Lyra recebem o webhook usando a URL públi
 
 ## Banco do Lyra
 
-O Lyra usa MySQL/MariaDB via `DATABASE_URL`; o PostgreSQL do serviço Evolution não substitui esse banco. A URI precisa apontar para um MySQL/MariaDB gerenciado, com acesso externo habilitado e TLS conforme o provedor.
+O Lyra usa PostgreSQL via `DATABASE_URL`, compatível com Supabase ou Render. Use a URI de conexão do pooler (ou conexão direta) com TLS conforme o provedor. O banco do Lyra é independente do banco da Evolution.
 
 ## Primeiro acesso
 

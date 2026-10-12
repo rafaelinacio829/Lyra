@@ -35,8 +35,8 @@ export const appRouter = router({
       const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
       if (existing) throw new Error("Já existe uma conta com este e-mail. Entre ou use a ativação inicial.");
       const passwordHash = await hashPassword(input.password); const now = new Date();
-      const result = await db.insert(users).values({ openId: createLocalOpenId(), name: input.name.trim(), email, loginMethod: "password", passwordHash, passwordUpdatedAt: now, lastSignedIn: now });
-      await setSessionCookie(ctx, Number(result[0].insertId)); return { success: true as const };
+      const [created] = await db.insert(users).values({ openId: createLocalOpenId(), name: input.name.trim(), email, loginMethod: "password", passwordHash, passwordUpdatedAt: now, lastSignedIn: now }).returning({ id: users.id });
+      await setSessionCookie(ctx, created.id); return { success: true as const };
     }),
     login: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(1) })).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("Banco de dados indisponível."); const email = normalizeEmail(input.email);

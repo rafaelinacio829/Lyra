@@ -20,7 +20,7 @@ describe("roteador de regras operacionais", () => {
   });
 
   it("persiste política por tenant e registra auditoria sem cruzar acesso", async () => {
-    const onDuplicateKeyUpdate = vi.fn().mockResolvedValue(undefined); const values = vi.fn(() => ({ onDuplicateKeyUpdate }));
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined); const values = vi.fn(() => ({ onConflictDoUpdate }));
     getDb.mockResolvedValue({ insert: vi.fn(() => ({ values })) });
     await expect(operatingRulesRouter.createCaller(context).update(input)).resolves.toEqual({ success: true });
     expect(requireTenantAdmin).toHaveBeenCalledWith(7, 12); expect(values).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 12, inboundRouting: "human_first" })); expect(recordTenantAudit).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 12, action: "operating_rules.updated" }));

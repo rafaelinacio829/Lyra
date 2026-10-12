@@ -73,7 +73,7 @@ async function ensureDefaultPlans() {
   if (rows.length === defaultPlans.length) return rows;
 
   for (const plan of defaultPlans) {
-    await db.insert(plans).values(plan).onDuplicateKeyUpdate({
+    await db.insert(plans).values(plan).onConflictDoUpdate({ target: plans.code,
       set: {
         name: plan.name,
         description: plan.description,
@@ -151,7 +151,7 @@ export const tenantRouter = router({
             status: "trial",
             trialEndsAt,
           })
-          .$returningId();
+          .returning();
 
         await tx.insert(tenantMemberships).values({
           tenantId: createdTenant.id,

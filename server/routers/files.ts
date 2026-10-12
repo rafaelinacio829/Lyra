@@ -23,7 +23,7 @@ export const fileRouter = router({
       await assertTenantQuota(input.tenantId, "storage", bytes.length);
       const safeName = input.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const { key } = await storagePut(`tenants/${input.tenantId}/${input.classification}/${randomUUID()}-${safeName}`, bytes, input.mimeType);
-      const [created] = await db.insert(privateFiles).values({ tenantId: input.tenantId, conversationId: input.conversationId ?? null, storageKey: key, originalName: safeName, mimeType: input.mimeType, sizeBytes: bytes.length, classification: input.classification, uploadedByMembershipId: access.membershipId }).$returningId();
+      const [created] = await db.insert(privateFiles).values({ tenantId: input.tenantId, conversationId: input.conversationId ?? null, storageKey: key, originalName: safeName, mimeType: input.mimeType, sizeBytes: bytes.length, classification: input.classification, uploadedByMembershipId: access.membershipId }).returning();
       return { id: created.id, originalName: safeName };
     }),
 
