@@ -45,10 +45,40 @@ export const platformRouter = router({
     }
     return { marginPercent: margin, tenants: Array.from(byTenant.values()), events: rows };
   }),
-  recordCostEvent: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), category: z.string().trim().min(2).max(40), provider: z.string().trim().max(40).optional(), units: z.number().int().positive().default(1), costCents: z.number().int().nonnegative(), metadata: z.record(z.string(), z.unknown()).optional() })).mutation(async ({ input }) => {
+  evolutionInstances: platformAdminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
-    await db.insert(tenantCostEvents).values({ tenantId: input.tenantId, category: input.category, provider: input.provider ?? null, units: input.units, costCents: input.costCents, metadata: input.metadata ?? null });
+    const integrations = await db.select({
+      id: integrationConfigs.id, tenantId: integrationConfigs.tenantId, tenantName: tenants.name,
+      name: integrationConfigs.name, instanceName: integrationConfigs.channelIdentifier, status: integrationConfigs.status,
+      lastVerifiedAt: integrationConfigs.lastVerifiedAt, updatedAt: integrationConfigs.updatedAt,
+    }).from(integrationConfigs).innerJoin(tenants, eq(integrationConfigs.tenantId, tenants.id))
+      .where(eq(integrationConfigs.provider, "evolution")).orderBy(desc(integrationConfigs.updatedAt));
+    let costs: Array<{ integrationConfigId: number | null; costCents: number; units: number }> = [];
+    try {
+      costs = await db.select({
+        integrationConfigId: tenantCostEvents.integrationConfigId, costCents: tenantCostEvents.costCents,
+        units: tenantCostEvents.units,
+      }).from(tenantCostEvents).where(eq(tenantCostEvents.provider, "evolution"));
+    } catch (error) {
+      console.error("Evolution cost history unavailable; showing instances without cost totals", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const costsByIntegration = new Map<number, { costCents: number; units: number }>();
+    for (const cost of costs) {
+      if (cost.integrationConfigId == null) continue;
+      const current = costsByIntegration.get(cost.integrationConfigId) ?? { costCents: 0, units: 0 };
+      current.costCents += cost.costCents;
+      current.units += cost.units;
+      costsByIntegration.set(cost.integrationConfigId, current);
+    }
+    return integrations.map(item => ({ ...item, costCents: costsByIntegration.get(item.id)?.costCents ?? 0, costUnits: costsByIntegration.get(item.id)?.units ?? 0 }));
+  }),
+  recordCostEvent: platformAdminProcedure.input(z.object({ tenantId: z.number().int().positive(), integrationConfigId: z.number().int().positive().optional(), category: z.string().trim().min(2).max(40), provider: z.string().trim().max(40).optional(), units: z.number().int().positive().default(1), costCents: z.number().int().nonnegative(), metadata: z.record(z.string(), z.unknown()).optional() })).mutation(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+    await db.insert(tenantCostEvents).values({ tenantId: input.tenantId, integrationConfigId: input.integrationConfigId ?? null, category: input.category, provider: input.provider ?? null, units: input.units, costCents: input.costCents, metadata: input.metadata ?? null });
     return { success: true as const };
   }),
   operationalIncidents: platformAdminProcedure.query(async () => {

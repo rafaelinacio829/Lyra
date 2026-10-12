@@ -179,6 +179,11 @@ export const integrationRouter = router({
      if (!ENV.evolutionApiUrl || !ENV.evolutionApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure EVOLUTION_API_URL e EVOLUTION_API_KEY no servidor." });
      const db = await getDb();
      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+     const name = input.name.trim();
+     const [existing] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"), eq(integrationConfigs.name, name))).limit(1);
+     if (existing) {
+       throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conexão Evolution com esse nome nesta empresa. Escolha outro nome." });
+     }
      await assertTenantQuota(input.tenantId, "integrations");
      const instanceName = `lyra-${input.tenantId}-${randomBytes(5).toString("hex")}`;
      const webhookKey = randomBytes(24).toString("base64url");
@@ -192,13 +197,32 @@ export const integrationRouter = router({
      }).catch(() => null);
      if (!response?.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Evolution API não criou a instância. Verifique se o servidor está disponível." });
      const payload = await response.json().catch(() => ({})) as { hash?: string; instance?: { instanceId?: string } };
-     await db.insert(integrationConfigs).values({
-       tenantId: input.tenantId, provider: "evolution", name: input.name, channelIdentifier: instanceName,
-       channelPurpose: input.channelPurpose, status: "active", lastVerifiedAt: new Date(), publicConfig: { instanceName, baseUrl },
-       secretCiphertext: encryptTenantSecret(JSON.stringify({ apiKey: ENV.evolutionApiKey, webhookKey })),
-       secretFingerprint: fingerprintTenantSecret(instanceName), webhookSecretCiphertext: encryptTenantSecret(webhookKey),
-     });
-     const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"), eq(integrationConfigs.name, input.name))).limit(1);
+     try {
+       await db.insert(integrationConfigs).values({
+         tenantId: input.tenantId, provider: "evolution", name, channelIdentifier: instanceName,
+         channelPurpose: input.channelPurpose, status: "active", lastVerifiedAt: new Date(), publicConfig: { instanceName, baseUrl },
+         secretCiphertext: encryptTenantSecret(JSON.stringify({ apiKey: ENV.evolutionApiKey, webhookKey })),
+         secretFingerprint: fingerprintTenantSecret(instanceName), webhookSecretCiphertext: encryptTenantSecret(webhookKey),
+       });
+     } catch (error) {
+       console.error("Evolution integration persistence failed", {
+         instanceName,
+         error: error instanceof Error ? error.message : String(error),
+       });
+       const cleanupResponse = await fetch(`${baseUrl}/instance/delete/${encodeURIComponent(instanceName)}`, {
+         method: "DELETE",
+         headers: { apikey: ENV.evolutionApiKey },
+         signal: AbortSignal.timeout(10_000),
+       }).catch(() => null);
+       if (!cleanupResponse?.ok) {
+         console.error("Evolution instance cleanup failed after integration persistence error", { instanceName, status: cleanupResponse?.status });
+       }
+       if (error instanceof Error && /duplicate|unique|1062/i.test(error.message)) {
+         throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conexão Evolution com esse nome nesta empresa. Escolha outro nome." });
+       }
+       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A instância foi criada, mas não pôde ser salva na empresa." });
+     }
+     const [config] = await db.select({ id: integrationConfigs.id }).from(integrationConfigs).where(and(eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"), eq(integrationConfigs.name, name))).limit(1);
      if (!config) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A instância foi criada, mas não foi salva na empresa." });
      await recordTenantAudit({ tenantId: input.tenantId, actorUserId: ctx.user.id, action: "integration.evolution_instance_created", entityType: "integration", entityId: config.id, metadata: { name: input.name, instanceName, providerResponse: Boolean(payload.hash || payload.instance) } });
      return { id: config.id, instanceName };
@@ -217,6 +241,23 @@ export const integrationRouter = router({
      if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Evolution API não retornou o QR Code." });
      const payload = await response.json() as { base64?: string; code?: string };
      return { image: payload.base64 || null, code: payload.code || null };
+    }),
+
+  getEvolutionStatus: protectedProcedure
+    .input(z.object({ tenantId: z.number().int().positive(), integrationId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireTenantAdmin(ctx.user.id, input.tenantId);
+      if (!ENV.evolutionApiUrl || !ENV.evolutionApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Evolution API não configurada no servidor." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+      const [config] = await db.select().from(integrationConfigs).where(and(eq(integrationConfigs.id, input.integrationId), eq(integrationConfigs.tenantId, input.tenantId), eq(integrationConfigs.provider, "evolution"))).limit(1);
+      if (!config?.publicConfig) throw new TRPCError({ code: "NOT_FOUND", message: "Conexão Evolution não encontrada." });
+      const { instanceName } = config.publicConfig as { instanceName?: string };
+      if (!instanceName) throw new TRPCError({ code: "BAD_REQUEST", message: "Identificador da instância Evolution ausente." });
+      const response = await fetch(`${ENV.evolutionApiUrl.replace(/\/$/, "")}/instance/connectionState/${encodeURIComponent(instanceName)}`, { headers: { apikey: ENV.evolutionApiKey }, signal: AbortSignal.timeout(10_000) });
+      if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "A Evolution API não retornou o estado da conexão." });
+      const payload = await response.json() as { instance?: { state?: string }; state?: string };
+      return { state: payload.instance?.state || payload.state || "unknown" };
     }),
 
   activateZapiWebhook: protectedProcedure

@@ -220,6 +220,7 @@ export const tenantCostEvents = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     tenantId: int("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    integrationConfigId: int("integration_config_id"),
     category: varchar("category", { length: 40 }).notNull(),
     provider: varchar("provider", { length: 40 }),
     units: int("units").notNull().default(1),
@@ -227,7 +228,7 @@ export const tenantCostEvents = mysqlTable(
     metadata: json("metadata"),
     occurredAt: timestamp("occurred_at").defaultNow().notNull(),
   },
-  table => [index("tenant_cost_events_tenant_date_idx").on(table.tenantId, table.occurredAt)]
+  table => [index("tenant_cost_events_tenant_date_idx").on(table.tenantId, table.occurredAt), index("tenant_cost_events_integration_idx").on(table.integrationConfigId, table.occurredAt)]
 );
 
 export const tenantInvites = mysqlTable(

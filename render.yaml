@@ -1,5 +1,39 @@
 services:
   - type: web
+    name: lyra
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm drizzle-kit migrate && pnpm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TENANT_SECRETS_KEY
+        generateValue: true
+      - key: LOCAL_AUTH_BOOTSTRAP_CODE
+        generateValue: true
+      - key: OWNER_OPEN_ID
+        value: owner-local
+      - key: OWNER_NAME
+        value: Administrador Lyra
+      - key: OWNER_EMAIL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: EVOLUTION_API_URL
+        value: https://lyra-evolution-api.onrender.com
+      - key: EVOLUTION_API_KEY
+        sync: false
+      - key: PLATFORM_PROFIT_MARGIN_PERCENT
+        value: "30"
+  - type: web
     name: lyra-evolution-api
     runtime: image
     plan: free
