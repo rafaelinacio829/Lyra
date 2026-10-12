@@ -30,4 +30,4 @@ EVOLUTION_API_KEY=<o-valor-de-AUTHENTICATION_API_KEY>
 - Não use número pessoal, número principal da empresa ou dados de clientes nesse ambiente.
 - O serviço gratuito não é adequado para SLA, produção ou múltiplos clientes reais.
 
-Para um teste mais estável, habilite PostgreSQL, Redis e armazenamento persistente em um plano pago e ajuste as variáveis oficiais da versão da Evolution API utilizada.
+Para um teste mais estável, habilite PostgreSQL, Redis e armazenamento persistente em um plano pago e ajuste as variáveis oficiais da versão da Evolution API utilizada. O Blueprint usa `evoapicloud/evolution-api:latest` porque a tag `2.3.7` não está publicada nesse registry.

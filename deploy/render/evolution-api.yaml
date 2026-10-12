@@ -4,7 +4,7 @@ services:
     runtime: image
     plan: free
     image:
-      url: evoapicloud/evolution-api:2.3.7
+      url: evoapicloud/evolution-api:latest
     healthCheckPath: /
     envVars:
       - key: SERVER_TYPE
