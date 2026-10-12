@@ -71,20 +71,24 @@ async function sendEvolutionConfig(config: typeof integrationConfigs.$inferSelec
       method: "POST",
       headers: { apikey: secrets.apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ number: normalizedPhone, text: message }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(35_000),
     });
   } catch (error) {
-    throw new Error(error instanceof Error && error.name === "AbortError" ? "Tempo excedido ao chamar a Evolution API." : "Não foi possível conectar à Evolution API. Verifique a URL e se o serviço está ativo.");
+    throw new Error(error instanceof Error && error.name === "AbortError" ? "Tempo excedido ao chamar a Evolution API (o serviço pode estar iniciando no Render)." : "Não foi possível conectar à Evolution API. Verifique a URL e se o serviço está ativo.");
   }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
     let errorDetail = "";
-    try {
-      const parsed = JSON.parse(errorBody);
-      errorDetail = parsed?.response?.message || parsed?.message || errorBody;
-    } catch {
-      errorDetail = errorBody.slice(0, 200);
+    if (response.status === 502 || response.status === 504 || errorBody.toLowerCase().includes("<!doctype html")) {
+      errorDetail = "O serviço no Render estava inicializando (cold start). Ele já acordou, tente enviar novamente.";
+    } else {
+      try {
+        const parsed = JSON.parse(errorBody);
+        errorDetail = parsed?.response?.message || parsed?.message || errorBody;
+      } catch {
+        errorDetail = errorBody.slice(0, 200);
+      }
     }
     throw new Error(`Evolution API respondeu ${response.status}${errorDetail ? `: ${errorDetail}` : ""}`);
   }
